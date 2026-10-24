@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Space Station
+GenericName=Flydigi cooler control
+Comment=Control a Flydigi BS series laptop cooler
+Exec=flydigi-space
+Icon=flydigi-space
+Terminal=false
+Categories=System;HardwareSettings;Settings;
+Keywords=flydigi;cooler;fan;bs2;bs3;
+StartupNotify=true
