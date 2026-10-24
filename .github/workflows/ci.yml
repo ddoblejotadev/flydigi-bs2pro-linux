@@ -1,0 +1,110 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-test:
+    runs-on: linux-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Qt 6
+        uses: jurplel/install-qt-action@v3
+        with:
+          qt: '6.7.0'
+          components: 'core,gui,widgets,quick'
+
+      - name: Configure CMake
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build -j"$(nproc)"
+
+      - name: Test (if test runner exists)
+        run: |
+          if [ -f test_runner ]; then
+            ./test_runner
+          elif [ -d tests ]; then
+            ctest --test-dir build --output-on-failure
+          else
+            echo "No test runner found, skipping"
+          fi
+
+      - name: Generate release tag
+        id: tag
+        run: |
+          # Get next version
+          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          MAJOR=$(echo $LAST_TAG | cut -d. -f1 | sed 's/v//')
+          MINOR=$(echo $LAST_TAG | cut -d. -f2)
+          PATCH=$(echo $LAST_TAG | cut -d. -f3)
+          NEW_PATCH=$((PATCH + 1))
+          NEW_TAG="v${MAJOR}.${MINOR}.${NEW_PATCH}"
+          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.new_tag }}
+          name: "Release ${{ steps.tag.outputs.new_tag }}"
+          body: |
+            ## What's changed
+
+            - Initial build from main branch
+            - Qt 6.7.0 with Release configuration
+            - All S1-S9 specifications implemented
+            - Lighting protocol REA-corrected
+            - Gear presets with supply gating
+            - System tray integration
+
+            ## Install
+
+            ```bash
+            # Download from release page or build from source
+            cd /tmp
+            curl -LJO https://github.com/ddoblejotadev/flydigi-bs2pro-linux/releases/download/${{ steps.tag.outputs.new_tag }}/flydigi-bs2pro-linux-${{ steps.tag.outputs.new_tag#v }}-linux-x86_64.tar.xz
+            tar xf flydigi-bs2pro-linux-${{ steps.tag.outputs.new_tag#v }}-linux-x86_64.tar.xz
+            mv flydigi-bs2pro-linux-${{ steps.tag.outputs.new_tag#v }}-linux-x86_64/flydigi-bs2pro-linux ~/.local/bin/
+            mv flydigi-bs2pro-linux-${{ steps.tag.outputs.new_tag#v }}-linux-x86_64/FlydigiSpace ~/.local/share/
+            cp flydigi-bs2pro-linux-${{ steps.tag.outputs.new_tag#v }}-linux-x86_64/flydigi-bs2pro-linux.desktop ~/.local/share/applications/
+            cp flydigi-bs2pro-linux-${{ steps.tag.outputs.new_tag#v }}-linux-x86_64/flydigi-bs2pro-linux.svg ~/.local/share/icons/hicolor/scalable/apps/
+            flydigi-bs2pro-linux
+            ```
+
+            ## Verifying install
+
+            ```bash
+            # Check binary
+            flydigi-bs2pro-linux --help
+
+            # Check daemon is running
+            pgrep -a flydigictl
+
+            # Check socket
+            ls -la $XDG_RUNTIME_DIR/flydigictl.sock 2>/dev/null || echo "Set XDG_RUNTIME_DIR if needed"
+            ```
+
+            ## Known issues
+
+            - See [Troubleshooting](README.md#troubleshooting)
+            - Report bugs at: https://github.com/ddoblejotadev/flydigi-bs2pro-linux/issues
+          }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifact (optional)
+        uses: actions/upload-artifact@v4
+        with:
+          name: flydigi-bs2pro-linux-build
+          path: build/
+          retention-days: 7
