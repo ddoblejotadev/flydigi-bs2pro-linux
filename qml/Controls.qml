@@ -195,6 +195,7 @@ Rectangle {
             id: slider
 
             Layout.fillWidth: true
+            visible: backend.manual
             from: 0
             to: Math.max(500, backend.supplyMaxRpm)
             stepSize: 50
@@ -266,6 +267,22 @@ Rectangle {
             color: Theme.line
         }
 
+        Text {
+            text: "SMART SPEED / AUTO"
+            color: Theme.muted
+            font.family: Theme.ui
+            font.pixelSize: 10
+            font.weight: Font.DemiBold
+            font.letterSpacing: 1.2
+        }
+
+        Text {
+            text: "Select the automatic temperature curve"
+            color: Theme.muted
+            font.family: Theme.ui
+            font.pixelSize: 10
+        }
+
         // Official Smart presets; highlight readback, never the requested index.
         RowLayout {
             Layout.fillWidth: true
@@ -295,6 +312,22 @@ Rectangle {
         }
 
         // Gears -------------------------------------------------------------
+        Text {
+            text: "MANUAL SPEED"
+            color: Theme.muted
+            font.family: Theme.ui
+            font.pixelSize: 10
+            font.weight: Font.DemiBold
+            font.letterSpacing: 1.2
+        }
+
+        Text {
+            text: "Choose one of four gears and one of its three stored levels"
+            color: Theme.muted
+            font.family: Theme.ui
+            font.pixelSize: 10
+        }
+
         Text {
             text: "STORED GEARS"
             color: Theme.muted
