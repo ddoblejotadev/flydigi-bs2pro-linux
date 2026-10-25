@@ -15,6 +15,113 @@ Rectangle {
 
     implicitHeight: content.implicitHeight + 44
 
+    // A local draft, not a saved curve: daemon readback has no verified Custom
+    // index. Never seed RPMs from an arbitrary curve or invent official defaults.
+    Dialog {
+        id: curveEditor
+        objectName: "customCurveEditor"
+        parent: Overlay.overlay
+        anchors.centerIn: parent
+        width: Math.min(380, parent ? parent.width - 24 : 380)
+        modal: true
+        title: "Custom cooling curve"
+        property string feedback: ""
+        readonly property int rpmCap: Math.min(4000, backend.supplyMaxRpm)
+        readonly property var points: {
+            const result = [];
+            let previous = 29;
+            for (let i = 0; i < pointRows.count; ++i) {
+                const row = pointRows.itemAt(i);
+                if (!row || !row.temperatureValid || !row.rpmValid)
+                    return [];
+                const temperature = Number(row.temperatureText);
+                const rpm = Number(row.rpmText);
+                if (!isFinite(temperature) || !isFinite(rpm)
+                    || temperature <= previous || rpm > rpmCap)
+                    return [];
+                result.push({temp_c: temperature, rpm: rpm});
+                previous = temperature;
+            }
+            return result;
+        }
+
+        contentItem: ColumnLayout {
+            spacing: 6
+            Label {
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: "Draft only. Enter 8 points: 30–100 °C in increasing order, "
+                    + "500–" + curveEditor.rpmCap + " RPM. RPM may decrease."
+            }
+            Repeater {
+                id: pointRows
+                model: 8
+                delegate: RowLayout {
+                    required property int index
+                    readonly property alias temperatureText: temperature.text
+                    readonly property alias rpmText: rpm.text
+                    readonly property alias temperatureValid: temperature.acceptableInput
+                    readonly property alias rpmValid: rpm.acceptableInput
+                    Label { text: (index + 1) + "."; Layout.preferredWidth: 18 }
+                    TextField {
+                        id: temperature
+                        objectName: "curveTemperature_" + index
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 90
+                        implicitHeight: 30
+                        text: String(30 + index * 10)
+                        validator: IntValidator { bottom: 30; top: 100 }
+                        Accessible.name: "Point " + (index + 1) + " temperature in Celsius"
+                        onTextChanged: curveEditor.feedback = ""
+                    }
+                    Label { text: "°C" }
+                    TextField {
+                        id: rpm
+                        objectName: "curveRpm_" + index
+                        Layout.fillWidth: true
+                        Layout.preferredWidth: 90
+                        implicitHeight: 30
+                        placeholderText: "RPM"
+                        validator: IntValidator { bottom: 500; top: curveEditor.rpmCap }
+                        Accessible.name: "Point " + (index + 1) + " RPM"
+                        onTextChanged: curveEditor.feedback = ""
+                    }
+                    Label { text: "RPM" }
+                }
+            }
+            Label {
+                objectName: "customCurveFeedback"
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: curveEditor.feedback
+                visible: text.length > 0
+            }
+            Label {
+                objectName: "customCurveProblem"
+                Layout.fillWidth: true
+                wrapMode: Text.WordWrap
+                text: backend.problem
+                color: Theme.warn
+                visible: text.length > 0
+            }
+            RowLayout {
+                Layout.fillWidth: true
+                Button { text: "Close"; onClicked: curveEditor.close() }
+                Item { Layout.fillWidth: true }
+                Button {
+                    objectName: "customCurveApply"
+                    text: "Submit custom"
+                    enabled: backend.connected && curveEditor.points.length === 8
+                    onClicked: {
+                        curveEditor.feedback = backend.setCustomCurve(curveEditor.points)
+                            ? "Submitted; awaiting daemon confirmation."
+                            : "Not submitted. Check connection and point limits.";
+                    }
+                }
+            }
+        }
+    }
+
     ColumnLayout {
         id: content
         anchors.fill: parent
@@ -39,15 +146,17 @@ Rectangle {
 
                 Repeater {
                     model: [
-                        { label: "CURVE", isManual: false },
+                        { label: "AUTO", isManual: false },
                         { label: "MANUAL", isManual: true }
                     ]
 
                     delegate: Rectangle {
                         required property var modelData
                         required property int index
+                        objectName: modelData.isManual ? "manualMode" : "automaticMode"
 
-                        readonly property bool selected: backend.manual === modelData.isManual
+                        readonly property bool selected: modelData.isManual
+                            ? backend.manual : backend.smartMode
 
                         width: 78
                         height: 28
@@ -67,13 +176,14 @@ Rectangle {
                         }
 
                         MouseArea {
+                            objectName: parent.modelData.isManual ? "manualMouseArea" : "automaticMouseArea"
                             anchors.fill: parent
                             cursorShape: Qt.PointingHandCursor
                             onClicked: {
                                 if (parent.modelData.isManual)
                                     backend.holdSpeed(Math.max(500, backend.targetRpm));
                                 else
-                                    backend.releaseManual();
+                                    backend.setAutomatic();
                             }
                         }
                     }
@@ -131,7 +241,11 @@ Rectangle {
         RowLayout {
             Layout.fillWidth: true
             Text {
-                text: backend.manual ? "holding " + backend.manualRpm + " rpm" : "following the curve"
+                objectName: "coolingStatus"
+                text: backend.manual ? "Linux manual override: " + backend.manualRpm + " rpm"
+                    : backend.smartMode ? "Smart Speed active"
+                    : backend.fixedGear ? "fixed gear: " + backend.targetRpm + " rpm"
+                    : "cooling mode not reported as active"
                 color: Theme.muted
                 font.family: Theme.ui
                 font.pixelSize: 11
@@ -150,6 +264,34 @@ Rectangle {
             Layout.fillWidth: true
             height: 1
             color: Theme.line
+        }
+
+        // Official Smart presets; highlight readback, never the requested index.
+        RowLayout {
+            Layout.fillWidth: true
+            spacing: 6
+            Repeater {
+                model: ["Quiet", "Performance", "Custom"]
+                delegate: Button {
+                    required property string modelData
+                    required property int index
+                    objectName: "curvePreset_" + modelData.toLowerCase()
+                    Layout.fillWidth: true
+                    implicitHeight: 28
+                    text: modelData
+                    font.pixelSize: 11
+                    highlighted: backend.curvePreset === modelData.toLowerCase()
+                    enabled: backend.connected
+                    onClicked: backend.setCurvePreset(index)
+                }
+            }
+            Button {
+                objectName: "editCustomCurve"
+                text: "Edit…"
+                implicitHeight: 28
+                Accessible.name: "Edit custom cooling curve"
+                onClicked: curveEditor.open()
+            }
         }
 
         // Gears -------------------------------------------------------------
@@ -173,10 +315,12 @@ Rectangle {
 
                 delegate: Rectangle {
                     id: gearCard
+                    objectName: "gear_" + modelData.name
 
                     required property var modelData
 
-                    readonly property bool active: !backend.manual
+                    readonly property bool active: backend.fixedGear
+                        && !backend.manual && !backend.smartMode
                         && Math.abs(modelData.rpm - backend.targetRpm) < 40
 
                     Layout.fillWidth: true

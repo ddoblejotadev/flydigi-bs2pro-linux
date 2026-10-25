@@ -36,6 +36,39 @@ target_link_libraries(flydigi-space PRIVATE
     Qt6::Quick
 )
 
+include(CTest)
+if(BUILD_TESTING)
+    find_package(Qt6 6.5 REQUIRED COMPONENTS Network Test)
+    qt_add_executable(backend_cooling_test
+        tests/backend_cooling_test.cpp
+        src/backend.cpp
+        src/backend.h
+    )
+    target_include_directories(backend_cooling_test PRIVATE src)
+    target_link_libraries(backend_cooling_test PRIVATE Qt6::Gui Qt6::Network Qt6::Test)
+    add_test(NAME backend_cooling_test COMMAND backend_cooling_test)
+
+    qt_add_executable(cooling_ui_test
+        tests/cooling_ui_test.cpp
+        src/backend.cpp
+        src/backend.h
+    )
+    qt_add_qml_module(cooling_ui_test
+        URI FlydigiSpace
+        VERSION 1.0
+        RESOURCE_PREFIX /qt/qml
+        OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/cooling-ui/FlydigiSpace
+        QML_FILES qml/Theme.qml qml/Controls.qml
+    )
+    target_include_directories(cooling_ui_test PRIVATE src)
+    target_link_libraries(cooling_ui_test PRIVATE Qt6::Quick Qt6::Network Qt6::Test)
+    add_test(NAME cooling_ui_test COMMAND cooling_ui_test)
+    set_tests_properties(cooling_ui_test PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
+        TIMEOUT 20
+    )
+endif()
+
 install(TARGETS flydigi-space RUNTIME DESTINATION bin)
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/FlydigiSpace
         DESTINATION share/flydigi-space/qml)

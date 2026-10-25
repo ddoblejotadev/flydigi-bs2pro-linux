@@ -11,6 +11,7 @@
 #include <QSet>
 #include <QStandardPaths>
 #include <algorithm>
+#include <cmath>
 
 namespace {
 
@@ -203,20 +204,54 @@ void Backend::send(const QJsonObject &request)
 void Backend::holdSpeed(int rpm)
 {
     send(QJsonObject{{QStringLiteral("request"), QStringLiteral("set_manual")},
-                     {QStringLiteral("rpm"), rpm}});
+                 {QStringLiteral("rpm"), rpm}});
 }
 
 void Backend::releaseManual()
 {
     send(QJsonObject{{QStringLiteral("request"), QStringLiteral("set_manual")},
-                     {QStringLiteral("rpm"), QJsonValue()}});
+                 {QStringLiteral("rpm"), QJsonValue()}});
 }
 
+/// Explicitly request Smart Speed; status confirms the resulting mode.
+void Backend::setAutomatic()
+{
+    send(QJsonObject{{QStringLiteral("request"), QStringLiteral("set_automatic")}});
+}
+
+/// Rewrite one of the four speeds stored in the cooler.
 void Backend::writeGear(const QString &name, int rpm)
 {
+    // Map UI gear names to daemon gear names
+    static const QMap<QString, QString> gearAlias = {
+        {"Silent", QStringLiteral("quiet")},
+        {"Standard", QStringLiteral("standard")},
+        {"Strong", QStringLiteral("strong")},
+        {"Overclock", QStringLiteral("overclock")}
+    };
+    QString gearName = gearAlias.value(name, name);
+
+    // Map UI RPM arrays to daemon gear names' expected RPM levels
+    static const QMap<QString, QVector<int>> officialGears = {
+        {"quiet", {1300, 1700, 1900}},
+        {"standard", {2100, 2400, 2700}},
+        {"strong", {2800, 3000, 3300}},
+        {"overclock", {3500, 3700, 4000}}
+    };
+
+    if (!officialGears.contains(gearName)) {
+        qWarning() << "Unknown gear" << gearName;
+        return;
+    }
+    const auto &levels = officialGears[gearName];
+    // Find closest RPM level or clamp to max
+    int target = std::find(levels.begin(), levels.end(), rpm) != levels.end() ? rpm :
+                   (rpm < levels.first() ? levels.first() : levels.last());
+    // Supply gating: clamp to supply_max_rpm from daemon status
+    int clamped = qBound(500, target, m_supplyMaxRpm);
     send(QJsonObject{{QStringLiteral("request"), QStringLiteral("set_gear")},
-                     {QStringLiteral("gear"), name},
-                     {QStringLiteral("rpm"), rpm}});
+                 {QStringLiteral("gear"), gearName},
+                 {QStringLiteral("rpm"), clamped}});
 }
 
 void Backend::setStandby(const QString &mode)
@@ -225,7 +260,7 @@ void Backend::setStandby(const QString &mode)
         return;
 
     send(QJsonObject{{QStringLiteral("request"), QStringLiteral("set_standby")},
-                     {QStringLiteral("standby"), mode}});
+                 {QStringLiteral("standby"), mode}});
     m_standby = mode;
     emit changed();
 }
@@ -259,6 +294,26 @@ void Backend::setLightColor(const QString &color)
     pushLighting();
 }
 
+QStringList Backend::lightColors() const
+{
+    // Keep the legacy QColor input forms while exposing canonical RGB entries.
+    return {QColor(m_lightColor).name(QColor::HexRgb).toUpper()};
+}
+
+bool Backend::setLightColors(const QStringList &colors)
+{
+    // Never silently truncate a sequence the daemon cannot represent.
+    if (colors.size() != lightColorLimit())
+        return false;
+
+    const QString &color = colors.first();
+    if (color.size() != 7 || !color.startsWith(QLatin1Char('#')) || !QColor(color).isValid())
+        return false;
+
+    setLightColor(color);
+    return true;
+}
+
 void Backend::setLightEffect(int effect)
 {
     m_lightEffect = qBound(1, effect, 5);
@@ -287,7 +342,6 @@ void Backend::setLightIndicators(bool on)
 
 void Backend::pushLighting()
 {
-    m_stripOn = m_lightMode != QLatin1String("off");
     emit changed();
     m_lightTimer.start();
 }
@@ -298,7 +352,9 @@ void Backend::sendLighting()
     // wire shape nests one level deeper than it looks: the mode object carries
     // its own "mode" tag. Flattening it makes the daemon reject the request.
     QJsonObject mode;
-    if (m_lightMode == QLatin1String("static")) {
+    if (m_lightMode == QLatin1String("off")) {
+        mode.insert(QStringLiteral("mode"), QStringLiteral("off"));
+    } else if (m_lightMode == QLatin1String("static")) {
         const QColor color(m_lightColor);
         mode.insert(QStringLiteral("mode"), QStringLiteral("static"));
         mode.insert(QStringLiteral("color"),
@@ -318,7 +374,7 @@ void Backend::sendLighting()
     lighting.insert(QStringLiteral("indicators"), m_lightIndicators);
 
     send(QJsonObject{{QStringLiteral("request"), QStringLiteral("set_lighting")},
-                     {QStringLiteral("lighting"), lighting}});
+                 {QStringLiteral("lighting"), lighting}});
 }
 
 void Backend::readLines(QLocalSocket *socket, QByteArray &buffer)
@@ -367,14 +423,9 @@ void Backend::applyStatus(const QJsonObject &status)
     m_manualRpm = status.value(QStringLiteral("manual_rpm")).toInt(0);
     m_supply = status.value(QStringLiteral("supply")).toString();
     m_transport = status.value(QStringLiteral("transport")).toString();
-    m_leading = status.value(QStringLiteral("leading")).toString();
 
     const QJsonValue ceiling = status.value(QStringLiteral("supply_max_rpm"));
     m_supplyMaxRpm = ceiling.isDouble() ? ceiling.toInt() : 4000;
-
-    const QJsonValue strip = status.value(QStringLiteral("strip_on"));
-    if (strip.isBool())
-        m_stripOn = strip.toBool();
 
     // The daemon tells us what it last told the strip, which is the only way to
     // know what is playing: the cooler cannot be asked. Skip it while a local
@@ -422,6 +473,15 @@ void Backend::applyStatus(const QJsonObject &status)
             {QStringLiteral("panic"), demand.value(QStringLiteral("panic")).toBool(false)},
         });
     }
+
+    // Read gear-aware state from daemon
+    m_smartMode = status.value(QStringLiteral("smart_mode")).toBool(false);
+    m_fixedGear = status.value(QStringLiteral("fixed_gear")).toBool(false);
+    m_curvePreset = status.value(QStringLiteral("curve_preset")).toString();
+    // Status may omit curves even when get_config reports them. Only an explicit
+    // field replaces the readback; never infer which curve is the Custom preset.
+    if (status.contains(QStringLiteral("curves")))
+        m_curves = status.value(QStringLiteral("curves")).toArray().toVariantList();
 
     emit changed();
 }
@@ -491,15 +551,82 @@ void Backend::applyConfig(const QJsonObject &reply)
     m_configWritable = reply.value(QStringLiteral("writable")).toBool(true);
 
     const QJsonObject config = reply.value(QStringLiteral("config")).toObject();
+    m_curvePreset = config.value(QStringLiteral("curve_preset")).toString();
+    m_curves = config.value(QStringLiteral("curves")).toArray().toVariantList();
     const QString standby = config.value(QStringLiteral("standby")).toString();
     if (!standby.isEmpty())
         m_standby = standby;
 
+    const QJsonValue smartVal = config.value(QStringLiteral("smart_mode"));
+    if (smartVal.isBool()) {
+        m_smartMode = smartVal.toBool();
+    }
+    const QJsonValue curveVal = config.value(QStringLiteral("current_curve"));
+    if (curveVal.isDouble()) {
+        m_currentCurve = curveVal.toInt();
+    }
+
     emit changed();
+}
+
+bool Backend::setCustomCurve(const QVariantList &points)
+{
+    if (points.size() != 8 || m_command.state() != QLocalSocket::ConnectedState)
+        return false;
+
+    const int maximum = qMin(4000, m_supplyMaxRpm);
+    QJsonArray encoded;
+    int previousTemperature = 29;
+    for (const QVariant &value : points) {
+        const QVariantMap point = value.toMap();
+        const QJsonValue temperature = QJsonValue::fromVariant(point.value(QStringLiteral("temp_c")));
+        const QJsonValue speed = QJsonValue::fromVariant(point.value(QStringLiteral("rpm")));
+        if (!temperature.isDouble() || !speed.isDouble())
+            return false;
+
+        const double temp = temperature.toDouble();
+        const double rpm = speed.toDouble();
+        if (!std::isfinite(temp) || !std::isfinite(rpm)
+            || temp != std::floor(temp) || rpm != std::floor(rpm)
+            || temp < 30 || temp > 100 || temp <= previousTemperature
+            || rpm < 500 || rpm > maximum)
+            return false;
+
+        previousTemperature = static_cast<int>(temp);
+        encoded.append(QJsonObject{{QStringLiteral("temp_c"), previousTemperature},
+                                   {QStringLiteral("rpm"), static_cast<int>(rpm)}});
+    }
+
+    // Validate the whole request before sending. Do not manufacture readback or
+    // activate Smart separately: a rejected curve must not change cooling mode.
+    send(QJsonObject{{QStringLiteral("request"), QStringLiteral("set_curve_preset")},
+                    {QStringLiteral("preset"), QStringLiteral("custom")},
+                    {QStringLiteral("points"), encoded}});
+    return true;
 }
 
 void Backend::fail(const QString &message)
 {
     m_problem = message;
+    emit changed();
+}
+
+/// Select a curve preset: 0=Quiet, 1=Performance, 2=Custom
+void Backend::setCurvePreset(int preset)
+{
+    // Clamp to valid presets: 0=Quiet, 1=Performance, 2=Custom
+    preset = qBound(0, preset, 2);
+    if (preset == m_currentCurve)
+        return;
+
+    static const QString names[]{QStringLiteral("quiet"), QStringLiteral("performance"),
+                                 QStringLiteral("custom")};
+    m_currentCurve = preset;
+    send(QJsonObject{{QStringLiteral("request"), QStringLiteral("set_curve_preset")},
+                 {QStringLiteral("preset"), names[preset]}});
+    // When a curve is selected, activate Smart Speed if not already active
+    if (!m_smartMode) {
+        setAutomatic();
+    }
     emit changed();
 }
