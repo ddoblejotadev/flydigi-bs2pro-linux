@@ -693,6 +693,48 @@ Rectangle {
 
         RowLayout {
             Layout.fillWidth: true
+            spacing: 10
+            visible: backend.lightMode === "effect"
+
+            Text {
+                text: "EFFECT SPEED"
+                color: Theme.muted
+                font.family: Theme.ui
+                font.pixelSize: 10
+                font.weight: Font.DemiBold
+                font.letterSpacing: 1
+            }
+
+            Slider {
+                id: effectSpeed
+                Layout.fillWidth: true
+                from: 10
+                to: 2550
+                stepSize: 10
+                value: backend.lightSpeed
+                onMoved: backend.setLightSpeed(Math.round(value))
+
+                Connections {
+                    target: backend
+                    function onChanged() {
+                        if (!effectSpeed.pressed)
+                            effectSpeed.value = backend.lightSpeed;
+                    }
+                }
+            }
+
+            Text {
+                Layout.preferredWidth: 48
+                text: backend.lightSpeed
+                color: Theme.muted
+                font.family: Theme.mono
+                font.pixelSize: 10
+                horizontalAlignment: Text.AlignRight
+            }
+        }
+
+        RowLayout {
+            Layout.fillWidth: true
 
             Text {
                 text: "GEAR LIGHTS"

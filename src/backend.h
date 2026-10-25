@@ -36,6 +36,7 @@ class Backend : public QObject
     Q_PROPERTY(int lightColorLimit READ lightColorLimit CONSTANT)
     Q_PROPERTY(int lightEffect READ lightEffect NOTIFY changed)
     Q_PROPERTY(int lightBrightness READ lightBrightness NOTIFY changed)
+    Q_PROPERTY(int lightSpeed READ lightSpeed NOTIFY changed)
     Q_PROPERTY(bool lightIndicators READ lightIndicators NOTIFY changed)
     Q_PROPERTY(bool configWritable READ configWritable NOTIFY changed)
     Q_PROPERTY(QVariantList temps READ temps NOTIFY changed)
@@ -81,6 +82,7 @@ public:
     int lightColorLimit() const { return 1; }
     int lightEffect() const { return m_lightEffect; }
     int lightBrightness() const { return m_lightBrightness; }
+    int lightSpeed() const { return m_lightSpeed; }
     bool lightIndicators() const { return m_lightIndicators; }
     bool configWritable() const { return m_configWritable; }
     QVariantList temps() const { return m_temps; }
@@ -135,6 +137,9 @@ public slots:
     /// Strip brightness, 0-100. The gear lights keep their own setting.
     void setLightBrightness(int percent);
 
+    /// Animation speed in the official 10..2550 scale.
+    void setLightSpeed(int speed);
+
     /// The small LEDs behind the gear marks, which are a separate light.
     void setLightIndicators(bool on);
 
@@ -185,6 +190,7 @@ private:
     QString m_lightColor = QStringLiteral("#22D3EE");
     int m_lightEffect = 5;
     int m_lightBrightness = 100;
+    int m_lightSpeed = 500;
     bool m_lightIndicators = true;
     bool m_configWritable = true;
     QVariantList m_temps;

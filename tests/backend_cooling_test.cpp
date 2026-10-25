@@ -513,9 +513,20 @@ private slots:
         case 5: backend->setStrip(value); break;
         }
         QTRY_COMPARE(requests.size(), 1);
-        QCOMPARE(wireRequests, (QList<QByteArray>{"{\"lighting\":{\"brightness\":" +
-            QByteArray::number(brightness) + ",\"indicators\":" + (indicators ? "true" : "false") +
-            ",\"mode\":" + modeJson + "},\"request\":\"set_lighting\"}\n"}));
+        QJsonObject sent = QJsonDocument::fromJson(wireRequests.first()).object();
+        QJsonObject lighting = sent.value("lighting").toObject();
+        QCOMPARE(lighting.value("brightness").toInt(), brightness);
+        QCOMPARE(lighting.value("indicators").toBool(), indicators);
+        QCOMPARE(lighting.value("mode").toObject(), QJsonDocument::fromJson(modeJson).object());
+        if (operation == 2) {
+            QCOMPARE(lighting.value("speed").toInt(), 500);
+            QCOMPARE(lighting.value("ledCount").toInt(), 6);
+            QCOMPARE(lighting.value("colors").toArray().size(), 1);
+        } else {
+            QVERIFY(!lighting.contains("speed"));
+            QVERIFY(!lighting.contains("ledCount"));
+            QVERIFY(!lighting.contains("colors"));
+        }
         QCOMPARE(backend->stripOn(), backend->lightMode() != "off");
         QCOMPARE(backend->property("lightColors").toStringList(),
             QStringList{operation == 1 ? "#FF0000" : "#123456"});
@@ -531,8 +542,13 @@ private slots:
         QVERIFY(backend->stripOn());
         QCOMPARE(backend->lightBrightness(), 100);
         QTRY_COMPARE(requests.size(), 1); // Edits coalesce and pending state ignores stale readback.
-        QCOMPARE(wireRequests.first(), QByteArray(
-            "{\"lighting\":{\"brightness\":100,\"indicators\":true,\"mode\":{\"effect\":4,\"mode\":\"effect\"}},\"request\":\"set_lighting\"}\n"));
+        QJsonObject effectLighting = QJsonDocument::fromJson(wireRequests.first()).object().value("lighting").toObject();
+        QCOMPARE(effectLighting.value("brightness").toInt(), 100);
+        QCOMPARE(effectLighting.value("indicators").toBool(), true);
+        QCOMPARE(effectLighting.value("mode").toObject().value("effect").toInt(), 4);
+        QCOMPARE(effectLighting.value("speed").toInt(), 500);
+        QCOMPARE(effectLighting.value("ledCount").toInt(), 6);
+        QCOMPARE(effectLighting.value("colors").toArray().size(), 1);
         backend->setStrip(true); // Legacy enable selects static, not the previous effect.
         QTRY_COMPARE(requests.size(), 2);
         QCOMPARE(wireRequests.last(), QByteArray(

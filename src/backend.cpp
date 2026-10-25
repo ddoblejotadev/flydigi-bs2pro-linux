@@ -331,6 +331,16 @@ void Backend::setLightBrightness(int percent)
     pushLighting();
 }
 
+void Backend::setLightSpeed(int speed)
+{
+    const int clamped = qBound(10, speed, 2550);
+    if (clamped == m_lightSpeed)
+        return;
+
+    m_lightSpeed = clamped;
+    pushLighting();
+}
+
 void Backend::setLightIndicators(bool on)
 {
     if (on == m_lightIndicators)
@@ -372,6 +382,16 @@ void Backend::sendLighting()
     lighting.insert(QStringLiteral("mode"), mode);
     lighting.insert(QStringLiteral("brightness"), m_lightBrightness);
     lighting.insert(QStringLiteral("indicators"), m_lightIndicators);
+    if (m_lightMode == QLatin1String("effect")) {
+        QJsonArray colors;
+        const QColor color(m_lightColor);
+        colors.append(QJsonObject{{QStringLiteral("r"), color.red()},
+                                  {QStringLiteral("g"), color.green()},
+                                  {QStringLiteral("b"), color.blue()}});
+        lighting.insert(QStringLiteral("colors"), colors);
+        lighting.insert(QStringLiteral("speed"), m_lightSpeed);
+        lighting.insert(QStringLiteral("ledCount"), 6);
+    }
 
     send(QJsonObject{{QStringLiteral("request"), QStringLiteral("set_lighting")},
                  {QStringLiteral("lighting"), lighting}});
