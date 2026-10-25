@@ -318,50 +318,71 @@ Rectangle {
                     objectName: "gear_" + modelData.name
 
                     required property var modelData
-
+                    readonly property var levels: {
+                        const values = {
+                            quiet: [1300, 1700, 1900],
+                            standard: [2100, 2400, 2700],
+                            strong: [2800, 3000, 3300],
+                            overclock: [3500, 3700, 4000]
+                        };
+                        return values[modelData.name] || [modelData.rpm];
+                    }
                     readonly property bool active: backend.fixedGear
                         && !backend.manual && !backend.smartMode
-                        && Math.abs(modelData.rpm - backend.targetRpm) < 40
+                        && levels.indexOf(backend.targetRpm) >= 0
 
                     Layout.fillWidth: true
-                    height: 50
+                    implicitHeight: 92
                     radius: 12
                     color: active ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.14) : Theme.surfaceHi
                     border.width: 1
                     border.color: active ? Qt.rgba(Theme.accent.r, Theme.accent.g, Theme.accent.b, 0.45) : Theme.line
                     opacity: modelData.allowed ? 1.0 : 0.45
 
-                    Column {
-                        anchors.verticalCenter: parent.verticalCenter
-                        anchors.left: parent.left
-                        anchors.leftMargin: 14
-                        spacing: 1
-
-                        Text {
-                            text: gearCard.modelData.name
-                            color: Theme.text
-                            font.family: Theme.ui
-                            font.pixelSize: 12
-                            font.weight: Font.DemiBold
-                            font.capitalization: Font.AllUppercase
-                            font.letterSpacing: 0.6
-                        }
-
-                        Text {
-                            text: gearCard.modelData.allowed
-                                  ? gearCard.modelData.rpm + " rpm"
-                                  : "needs more power"
-                            color: gearCard.modelData.allowed ? Theme.muted : Theme.warn
-                            font.family: Theme.ui
-                            font.pixelSize: 10
-                        }
-                    }
-
-                    MouseArea {
+                    ColumnLayout {
                         anchors.fill: parent
-                        enabled: parent.modelData.allowed
-                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ForbiddenCursor
-                        onClicked: backend.writeGear(parent.modelData.name, parent.modelData.rpm)
+                        anchors.margins: 12
+                        spacing: 6
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            Text {
+                                text: gearCard.modelData.name
+                                color: Theme.text
+                                font.family: Theme.ui
+                                font.pixelSize: 12
+                                font.weight: Font.DemiBold
+                                font.capitalization: Font.AllUppercase
+                                font.letterSpacing: 0.6
+                            }
+                            Item { Layout.fillWidth: true }
+                            Text {
+                                text: gearCard.modelData.allowed ? "3 levels" : "needs more power"
+                                color: gearCard.modelData.allowed ? Theme.muted : Theme.warn
+                                font.family: Theme.ui
+                                font.pixelSize: 10
+                            }
+                        }
+
+                        RowLayout {
+                            Layout.fillWidth: true
+                            spacing: 5
+                            Repeater {
+                                model: gearCard.levels
+                                delegate: Button {
+                                    required property int modelData
+                                    objectName: "gearLevel_" + gearCard.modelData.name + "_" + modelData
+                                    Layout.fillWidth: true
+                                    implicitHeight: 30
+                                    text: modelData + " rpm"
+                                    font.pixelSize: 10
+                                    enabled: gearCard.modelData.allowed
+                                        && modelData <= backend.supplyMaxRpm
+                                    highlighted: gearCard.active && backend.targetRpm === modelData
+                                    onClicked: backend.writeGear(gearCard.modelData.name, modelData)
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -8,11 +8,11 @@
 5. **S5** — "el modo strong y overclock funcionan con un cargador carga rapida, por eso se desconecta del notebook y se conecya por bluethooh a la app"
 
 ## Tasks
-- T1 (S1, S3): Reconstruct official Quiet/Performance/Custom curves from REA; commit: pending
-- T2 (S1, S2): Add daemon curve preset selection and custom curve persistence; commit: pending
-- T3 (S2, S3): Add QML curve editor and explicit mode UX; commit: pending
-- T4 (S4, S5): Preserve mode across USB power transition and reconnect over Bluetooth; commit: pending
-- T5 (S1-S5): Build, socket-test, and hardware-verify all official behavior; commit: pending
+- T1 (S1, S3): Reconstruct official Quiet/Performance/Custom curves from REA; commit: pending (exact vendor curves remain unverified)
+- T2 (S1, S2): Add daemon curve preset selection and custom curve persistence; commit: bfe2c4d
+- T3 (S2, S3): Add QML curve editor and explicit mode UX; commit: bfe2c4d
+- T4 (S4, S5): Preserve mode across USB power transition and reconnect over Bluetooth; commit: 2bc2fe6
+- T5 (S1-S5): Build, socket-test, and hardware-verify all official behavior; commit: 2bc2fe6
 
 ## Backend curve contract (bounded T1/T2 unit)
 

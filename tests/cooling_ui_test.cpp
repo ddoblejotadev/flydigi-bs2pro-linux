@@ -334,6 +334,26 @@ private slots:
         checkUi(false, false, "standard", "fixed gear: 2400 rpm");
     }
 
+    void manualGearLevelsAreRenderedExactly()
+    {
+        const QList<QPair<QString, QList<int>>> expected{
+            {"quiet", {1300, 1700, 1900}},
+            {"standard", {2100, 2400, 2700}},
+            {"strong", {2800, 3000, 3300}},
+            {"overclock", {3500, 3700, 4000}},
+        };
+
+        for (const auto &gear : expected) {
+            for (const int rpm : gear.second) {
+                auto *level = item("gearLevel_" + gear.first + "_" + QString::number(rpm));
+                QVERIFY(level);
+                QCOMPARE(level->property("text").toString(), QString::number(rpm) + " rpm");
+                QVERIFY(level->isEnabled());
+            }
+        }
+        QVERIFY(requests.isEmpty());
+    }
+
     void reportedModes_data()
     {
         QTest::addColumn<QJsonObject>("fields");

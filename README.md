@@ -80,9 +80,10 @@ protocol has not been verified to support them:
 - multi-color effect arrays and custom RGB sequences;
 - independent hardware RGB switch opcodes;
 - complete Windows RGB configuration persistence;
-- real-device validation of every cooling curve;
-- Strong/Overclock operation after USB power is removed and Bluetooth reconnects;
-- resident behavior verification with the physical cooler connected.
+- real-device validation of every official Windows cooling curve;
+- runtime observation of the official Windows app under Linux/Wine (its Windows
+  `SpaceStationService`/`fcs.sock` dependency is unavailable);
+- resident behavior beyond the verified systemd user daemon lifecycle.
 
 The application can be tested with a fake local socket, but socket tests do not
 prove firmware behavior. Hardware verification is the next meaningful milestone.
@@ -97,9 +98,11 @@ The project is being completed in this order:
    bounded eight-point editor without optimistic state changes.
 3. **Supported RGB behavior** — done. Existing daemon lighting behavior is
    validated and documented without inventing unsupported fields.
-4. **Hardware and resident verification** — next. Test the installed daemon with
-   the BS2 Pro, confirm persistence, USB/Bluetooth transitions, supply gating,
-   tray behavior, reconnects, and real thermal response.
+4. **Hardware and resident verification** — done for the available BS2 Pro
+   paths. Notebook USB limits the device to 2700 RPM; a fast charger switches
+   control to Bluetooth and exposes the full 4000 RPM range. Strong, Overclock,
+   AUTO settling, gear persistence, and daemon restart were verified. Exact
+   Windows curve parity remains unverified.
 5. **RGB parity expansion** — only after the daemon exposes and documents the
    full RGB configuration model.
 
