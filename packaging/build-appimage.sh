@@ -18,6 +18,11 @@ command -v appimagetool >/dev/null || {
   echo "download it in CI or install it locally; do not run an unverified binary" >&2
   exit 1
 }
+command -v linuxdeploy-plugin-qt >/dev/null || {
+  echo "error: linuxdeploy-plugin-qt is required to bundle Qt" >&2
+  echo "download it in CI or install it locally; do not run an unverified binary" >&2
+  exit 1
+}
 
 rm -rf "$appdir"
 mkdir -p "$appdir/usr"
@@ -27,6 +32,7 @@ linuxdeploy \
   --appdir "$appdir" \
   --desktop-file "$root_dir/packaging/flydigi-bs2pro-linux.desktop" \
   --icon-file "$root_dir/packaging/flydigi-bs2pro-linux.svg" \
+  --plugin qt \
   --output appimage \
   --executable "$appdir/usr/bin/flydigi-bs2pro-linux"
 

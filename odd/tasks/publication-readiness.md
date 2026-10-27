@@ -17,6 +17,7 @@ Source of truth for the authorized rename, packaging, local performance audit, s
 4. **S4** — "Pero antes haz pruebas de rendimientos no quiero algo que consuma mucho tampoco, verfificar como funciona el arranque y tal primero en local y tal, auditar si existen brechas de seguridad sueltas y tal"
 5. **S5** — "despues actualizar el readme con capturas toda de ejemplo repo con muchas estrellas"
 6. **S6** — "en el readme el unico agradecimiento es el REPO REA que esta en github"
+7. **S7** — "dale si agreguemos el workflow, quiero tambien que este proyecto tenga y se trabaje como correponde"
 
 ## Tasks
 
@@ -25,9 +26,12 @@ Source of truth for the authorized rename, packaging, local performance audit, s
 - T3 — S4 — Measure startup, idle CPU/RAM, tray residency, and daemon/UI lifecycle locally; identify security findings — route: parent + verifier — commit: pending
 - T4 — S1-S3 — Rename executable/target and implement install artifacts for AppImage/.deb release inputs and desktop launch — route: worker — commit: pending
 - T5 — S2-S6 — Rewrite installation/troubleshooting/publication README and add repository-local screenshots only; acknowledge REA repository only — route: parent — commit: pending
-- T6 — S1-S6 — Run build, packaging, performance, security, and release-readiness checks; record evidence — route: parent + verifier — commit: pending
+- T6 — S1-S6 — Run build, packaging, performance, security, and release-readiness checks; record evidence — route: parent + verifier — commit: f4c624b
+- T7 — S7 — Replace unsafe automatic-release CI with reproducible test, package, artifact, checksum, and tag-driven release workflows — route: parent — commit: pending
 
 ## Log
+
+- L2 — User request verbatim: "dale si agreguemos el workflow, quiero tambien que este proyecto tenga y se trabaje como correponde"
 
 - L1 — User request verbatim: "renombrar, y sobre otro quiero dejar claro esto  1. AppImage para distribución general.
  2. .deb para Ubuntu/Debian y derivados.
