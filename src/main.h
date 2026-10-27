@@ -18,7 +18,7 @@ public:
     explicit ResidentWindow(QObject *parent = nullptr) : QObject(parent), m_tray(this)
     {
         QApplication::setQuitOnLastWindowClosed(false);
-        m_tray.setIcon(QIcon::fromTheme(QStringLiteral("flydigi-space"),
+        m_tray.setIcon(QIcon::fromTheme(QStringLiteral("flydigi-bs2pro-linux"),
             QApplication::style()->standardIcon(QStyle::SP_ComputerIcon)));
         m_tray.setToolTip(QStringLiteral("Space Station"));
         auto *show = m_menu.addAction(tr("Show Space Station"), this, &ResidentWindow::showWindow);

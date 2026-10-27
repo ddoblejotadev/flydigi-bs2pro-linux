@@ -12,10 +12,10 @@
 int main(int argc, char *argv[])
 {
     QApplication app(argc, argv);
-    QGuiApplication::setApplicationName(QStringLiteral("flydigi-space"));
+    QGuiApplication::setApplicationName(QStringLiteral("flydigi-bs2pro-linux"));
     QGuiApplication::setApplicationDisplayName(QStringLiteral("Space Station"));
-    QGuiApplication::setOrganizationName(QStringLiteral("flydigi-space"));
-    QGuiApplication::setDesktopFileName(QStringLiteral("flydigi-space"));
+    QGuiApplication::setOrganizationName(QStringLiteral("flydigi-bs2pro-linux"));
+    QGuiApplication::setDesktopFileName(QStringLiteral("flydigi-bs2pro-linux"));
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral("Flydigi BS series cooler dashboard"));
@@ -39,8 +39,8 @@ int main(int argc, char *argv[])
     // installed copy keeps it under share, so point the engine there.
     const QString appDir = QCoreApplication::applicationDirPath();
     const QStringList importRoots{
-        appDir + QStringLiteral("/../share/flydigi-space/qml"),
-        appDir + QStringLiteral("/../lib/flydigi-space/qml"),
+        appDir + QStringLiteral("/../share/flydigi-bs2pro-linux/qml"),
+        appDir + QStringLiteral("/../lib/flydigi-bs2pro-linux/qml"),
         appDir,
     };
     for (const QString &root : importRoots) {

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.21)
 
-project(flydigi-space VERSION 0.1.0 LANGUAGES CXX)
+project(flydigi-bs2pro-linux VERSION 0.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -11,14 +11,14 @@ qt_standard_project_setup()
 
 set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
-qt_add_executable(flydigi-space
+qt_add_executable(flydigi-bs2pro-linux
     src/main.cpp
     src/main.h
     src/backend.cpp
     src/backend.h
 )
 
-qt_add_qml_module(flydigi-space
+qt_add_qml_module(flydigi-bs2pro-linux
     URI FlydigiSpace
     VERSION 1.0
     QML_FILES
@@ -30,7 +30,7 @@ qt_add_qml_module(flydigi-space
         qml/Pill.qml
 )
 
-target_link_libraries(flydigi-space PRIVATE
+target_link_libraries(flydigi-bs2pro-linux PRIVATE
     Qt6::Core
     Qt6::Gui
     Qt6::Qml
@@ -94,8 +94,8 @@ if(BUILD_TESTING)
     )
 endif()
 
-install(TARGETS flydigi-space RUNTIME DESTINATION bin)
+install(TARGETS flydigi-bs2pro-linux RUNTIME DESTINATION bin)
 install(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/FlydigiSpace
-        DESTINATION share/flydigi-space/qml)
-install(FILES packaging/flydigi-space.desktop DESTINATION share/applications)
-install(FILES packaging/flydigi-space.svg DESTINATION share/icons/hicolor/scalable/apps)
+        DESTINATION share/flydigi-bs2pro-linux/qml)
+install(FILES packaging/flydigi-bs2pro-linux.desktop DESTINATION share/applications)
+install(FILES packaging/flydigi-bs2pro-linux.svg DESTINATION share/icons/hicolor/scalable/apps)
