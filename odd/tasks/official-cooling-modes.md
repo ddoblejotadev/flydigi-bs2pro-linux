@@ -70,6 +70,8 @@
 
 ## Log
 
+L7: Live power-cycle persistence verification (2026-10-27): with the daemon and GUI left running, the fast-charger supply was fully disconnected and reconnected. Status returned `no device yet` for about 22 seconds during the power-loss/reconnect window, then restored `connected=true`, `transport=bluetooth`, `supply=full`, and `supply_max_rpm=4000`. Persisted readback remained `smart_mode=true`, `fixed_gear=false`, `curve_preset=quiet`, and lighting remained effect 3, brightness 80, indicators true, strip_on true. AUTO target recalculated from 3030 down to 2910 as the thermal state settled. This verifies daemon reconnection and persisted state across a full cooler power cycle; exact vendor curve parity remains unverified.
+
 L6: Live hardware verification (2026-10-27): after USB/cable operation at `supply=low`, `supply_max_rpm=2700`, disconnecting the notebook USB and connecting the fast charger produced two transient `no device yet` replies, then the daemon reconnected with `transport=bluetooth`, `supply=full`, and `supply_max_rpm=4000`. Strong request `3300` reached `current_rpm=3300` with `fixed_gear=true`; Overclock request `4000` reached `current_rpm=4000` with `fixed_gear=true` and remained connected over Bluetooth. The tachometer briefly reported 4100–4300 while target remained 4000, then returned to 4000. `set_automatic` returned ok and readback changed to `smart_mode=true`, `fixed_gear=false` after the normal status interval. RGB state remained reported (`brightness=80`, `indicators=true`, `strip_on=true`). Full power-cycle persistence and exact vendor curve parity remain unverified.
 
 L5: T3 UI RED: `cmake --build build -j2` exited 0, then

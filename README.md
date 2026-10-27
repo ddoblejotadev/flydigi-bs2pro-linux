@@ -113,8 +113,9 @@ The project is being completed in this order:
 4. **Hardware and daemon verification** — transport and high-speed paths
    verified. Notebook USB limits the device to 2700 RPM; a fast-charger
    transition reconnects over Bluetooth with the full 4000 RPM supply limit.
-   Strong reached 3300 RPM and Overclock reached 4000 RPM. Full power-cycle
-   persistence and exact Windows curve parity remain unverified.
+   Strong reached 3300 RPM and Overclock reached 4000 RPM. Full cooler
+   power-cycle reconnection and state persistence were also observed; exact
+   Windows curve parity remains unverified.
 5. **RGB parity expansion** — only after the daemon exposes and documents the
    full RGB configuration model.
 
