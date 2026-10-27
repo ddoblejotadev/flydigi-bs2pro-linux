@@ -10,13 +10,13 @@ Source of truth for the authorized redesign of `flydigi-bs2pro-linux`. Read thro
 
 ## Tasks
 
-- T1 — S1 — Audit resident daemon/GUI lifecycle and define low-resource packaging/runtime behavior — commit: pending
-- T2 — S2-S3 — Reverse-engineer official UI controls and command mappings with REA, then map each control to observable Linux behavior — commit: pending
-- T3 — S2-S3 — Rework Qt/QML UI to match evidence-backed official control structure and state rules — commit: pending
-- T4 — S1-S2 — Add resident-app integration and functional verification for startup, tray/window behavior, USB/Bluetooth, supply limits, and control persistence — commit: pending
-- T5 — S1-S3 — Run verification, record limitations, and prepare publication-facing documentation — commit: pending
+- T1 — S1 — Audit resident daemon/GUI lifecycle and define low-resource packaging/runtime behavior — commit: a8ceef3
+- T2 — S2-S3 — Reverse-engineer official UI controls and command mappings with REA, then map each control to observable Linux behavior — commit: bfe2c4d, e593801
+- T3 — S2-S3 — Rework Qt/QML UI to match evidence-backed official control structure and state rules — commit: a8ceef3
+- T4 — S1-S2 — Add resident-app integration and functional verification for startup, tray/window behavior, USB/Bluetooth, supply limits, and control persistence — commit: a8ceef3
+- T5 — S1-S3 — Run verification, record limitations, and prepare publication-facing documentation — commit: a8ceef3
 
-- T6 — S2 — IMPLEMENTATION VERIFIED: Explicit Smart/fixed state readback and AUTO request implemented; independent build and tests pass (18 backend + 13 GUI QtTest cases). Native review: readability passed; reliability lens unavailable due to provider model catalog issue. No commit yet; awaits delivery decision. Explicit Smart/fixed state readback and AUTO request implemented; independent build and fake-socket tests pass (18 QtTest cases). Interactive QML behavior remains unverified; default-on Qt Test dependency needs delivery consideration. Route: worker + independent verifier (risk item 5); commit: pending
+- T6 — S2 — IMPLEMENTATION VERIFIED: Explicit Smart/fixed state readback and AUTO request implemented; independent build and tests pass (18 backend + 13 GUI QtTest cases). Native review: readability passed; reliability lens unavailable due to provider model catalog issue. Interactive QML behavior remains unverified; default-on Qt Test dependency needs delivery consideration. Route: worker + independent verifier (risk item 5); commit: bfe2c4d
 
 ## Bounded T3 cooling controls (S2, S3)
 
