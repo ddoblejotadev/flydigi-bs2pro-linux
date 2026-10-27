@@ -110,11 +110,11 @@ The project is being completed in this order:
    bounded eight-point editor without optimistic state changes.
 3. **Supported RGB behavior** — done. Existing daemon lighting behavior is
    validated and documented without inventing unsupported fields.
-4. **Hardware and daemon verification** — done for the available BS2 Pro
-   paths. Notebook USB limits the device to 2700 RPM; a fast charger switches
-   control to Bluetooth and exposes the full 4000 RPM range. Strong, Overclock,
-   AUTO settling, gear persistence, and daemon restart were verified. Exact
-   Windows curve parity remains unverified.
+4. **Hardware and daemon verification** — partially done. Notebook USB limits
+   the device to 2700 RPM, and bounded Bluetooth observations reached the
+   Strong/Overclock paths with the full 4000 RPM supply limit. Complete fast-
+   charger USB-loss/reconnection persistence and exact Windows curve parity
+   remain unverified.
 5. **RGB parity expansion** — only after the daemon exposes and documents the
    full RGB configuration model.
 
