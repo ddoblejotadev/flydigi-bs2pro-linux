@@ -70,6 +70,8 @@
 
 ## Log
 
+L6: Live hardware verification (2026-10-27): after USB/cable operation at `supply=low`, `supply_max_rpm=2700`, disconnecting the notebook USB and connecting the fast charger produced two transient `no device yet` replies, then the daemon reconnected with `transport=bluetooth`, `supply=full`, and `supply_max_rpm=4000`. Strong request `3300` reached `current_rpm=3300` with `fixed_gear=true`; Overclock request `4000` reached `current_rpm=4000` with `fixed_gear=true` and remained connected over Bluetooth. The tachometer briefly reported 4100–4300 while target remained 4000, then returned to 4000. `set_automatic` returned ok and readback changed to `smart_mode=true`, `fixed_gear=false` after the normal status interval. RGB state remained reported (`brightness=80`, `indicators=true`, `strip_on=true`). Full power-cycle persistence and exact vendor curve parity remain unverified.
+
 L5: T3 UI RED: `cmake --build build -j2` exited 0, then
 `ctest --test-dir build -R '^cooling_ui_test$' --output-on-failure` exited 8:
 13 existing passes, 13 new failures for missing preset/editor controls. After
