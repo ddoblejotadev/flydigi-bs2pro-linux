@@ -277,7 +277,10 @@ Rectangle {
         }
 
         Text {
-            text: "Select the automatic temperature curve"
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            text: "AUTO adjusts fan speed from temperature. Quiet favors lower noise; "
+                + "Performance raises RPM sooner; Custom lets you edit the curve."
             color: Theme.muted
             font.family: Theme.ui
             font.pixelSize: 10
@@ -309,6 +312,16 @@ Rectangle {
                 Accessible.name: "Edit custom cooling curve"
                 onClicked: curveEditor.open()
             }
+        }
+
+        Text {
+            Layout.fillWidth: true
+            wrapMode: Text.WordWrap
+            text: backend.manual ? "Manual gear is active; AUTO presets are paused until you select AUTO." :
+                "AUTO is active. Manual gears hold a fixed stored RPM until released."
+            color: backend.manual ? Theme.warn : Theme.muted
+            font.family: Theme.ui
+            font.pixelSize: 10
         }
 
         // Gears -------------------------------------------------------------
@@ -510,6 +523,7 @@ Rectangle {
                 delegate: Rectangle {
                     required property var modelData
 
+                    objectName: "lightMode_" + modelData.value
                     readonly property bool selected: backend.lightMode === modelData.value
 
                     width: 64
@@ -536,6 +550,20 @@ Rectangle {
                     }
                 }
             }
+        }
+
+        Switch {
+            objectName: "stripSwitch"
+            Layout.alignment: Qt.AlignRight
+            text: checked ? "Strip on" : "Strip off"
+            checked: backend.stripOn
+            enabled: backend.connected
+            Accessible.name: "Lighting strip"
+            Accessible.description: "Turning on selects the retained static color and brightness."
+            // This selects a daemon lighting mode, not an independent hardware switch.
+            onClicked: backend.setStrip(checked)
+            ToolTip.visible: hovered
+            ToolTip.text: "On uses the retained static color and brightness, not the previous effect."
         }
 
         // One fixed colour, picked from the eight the product ships with.

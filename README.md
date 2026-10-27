@@ -70,6 +70,16 @@ The backend sends the nested `set_lighting` payload required by the daemon and
 reads the reported lighting state back. Invalid colors, empty color lists, and
 multi-color lists are rejected without a write.
 
+The **Strip on / Strip off** switch supports mouse and keyboard (Tab, then Space)
+and is disabled while disconnected. It uses the existing lighting modes: off
+selects `off`; on selects the retained static color and brightness, not the previous
+effect. Brightness zero stays zero, and gear indicators are unchanged. The
+OFF/COLOR/EFFECT selectors remain available.
+
+The switch reflects the locally selected mode immediately and follows subsequent
+daemon readback. It is not independent hardware-switch readback, proof that the
+strip is physically lit, or confirmation of persistence.
+
 ## Known limitations
 
 These items are **not claimed as implemented** because the available daemon
@@ -82,8 +92,10 @@ protocol has not been verified to support them:
 - complete Windows RGB configuration persistence;
 - real-device validation of every official Windows cooling curve;
 - runtime observation of the official Windows app under Linux/Wine (its Windows
-  `SpaceStationService`/`fcs.sock` dependency is unavailable);
-- resident behavior beyond the verified systemd user daemon lifecycle.
+  `SpaceStationService`/`fcs.sock` dependency is unavailable).
+
+GUI residency is implemented and tested offscreen; native Linux tray integration
+and resource usage still require desktop verification (see Runtime behavior).
 
 The application can be tested with a fake local socket, but socket tests do not
 prove firmware behavior. Hardware verification is the next meaningful milestone.
@@ -98,7 +110,7 @@ The project is being completed in this order:
    bounded eight-point editor without optimistic state changes.
 3. **Supported RGB behavior** — done. Existing daemon lighting behavior is
    validated and documented without inventing unsupported fields.
-4. **Hardware and resident verification** — done for the available BS2 Pro
+4. **Hardware and daemon verification** — done for the available BS2 Pro
    paths. Notebook USB limits the device to 2700 RPM; a fast charger switches
    control to Bluetooth and exposes the full 4000 RPM range. Strong, Overclock,
    AUTO settling, gear persistence, and daemon restart were verified. Exact
@@ -129,7 +141,9 @@ with the daemon for hardware access.
 ### Dependencies
 
 - Linux
-- Qt 6.5 or newer (`Gui`, `Quick`, `Network`, and `Test` for tests)
+- Qt 6.5 or newer (`Core`, `Gui`, `Qml`, `Quick`, `Network`, and `Widgets`;
+  plus `Test` when building tests). The dashboard remains QML; `QApplication`
+  and `Widgets` provide `QSystemTrayIcon` and its native `QMenu`.
 - CMake 3.21 or newer
 - A running `flydigictld` daemon for functional hardware use
 
@@ -149,18 +163,54 @@ ctest --test-dir build --output-on-failure
 
 The tests use a controlled local socket and offscreen Qt Quick rendering. They
 verify public requests, exact JSON payloads, validation boundaries, readback,
-error handling, and UI state transitions. They do not replace hardware tests.
+error handling, and UI state transitions. `resident_lifecycle_test` additionally
+loads the full dashboard and checks Close/Escape, no-tray minimization, restoration,
+continued event-loop operation while hidden, and explicit tray/window Quit.
+The lifecycle fixture never starts the backend or contacts a real daemon. It
+invokes tray actions directly, not through a desktop tray host. These tests do
+not replace hardware or native desktop tests.
 
 ## Runtime behavior
 
+### Window and tray
+
+The GUI starts with its dashboard visible and stays resident until **Quit**:
+
+| Action | Result |
+|---|---|
+| Close the main window or press Escape | Hide when a tray host is available; otherwise minimize so the task switcher can restore it |
+| Tray **Show Space Station** | Show the hidden window or restore a minimized window; request focus |
+| Tray primary activation/double-click (where supported) | Same as Show |
+| Tray **Quit** or dashboard **Quit** | Exit only the GUI, even while the window is hidden |
+
+No autostart entry or service is installed or enabled. Launching the application
+again creates another instance; single-instance activation is not implemented.
+The tray uses the installed application theme icon, with a standard computer icon
+as fallback in an uninstalled build.
+
+Native tray visibility, menus, activation/focus on Wayland/X11, and tray-host
+loss/reappearance have **not** been verified. A host disappearing after the window
+was hidden can leave it inaccessible until the host returns; there is no polling
+watchdog or cross-process restore command. Without a tray, restore via the desktop
+task switcher and use the dashboard Quit button. Desktop/compositor support for
+minimization and focus requests varies.
+
+This is a bounded resident-lifecycle implementation, not a minimum-resource claim:
+the QML engine and existing backend subscription/reconnection behavior remain
+alive while hidden. CPU/RAM use and further hidden-window throttling are unmeasured.
+
+### Independent daemon
+
 - The daemon owns the cooler and can remain active independently of the window.
+  GUI Close, Escape, and Quit do not launch, stop, restart, or reconfigure its
+  process/service; no daemon protocol or external daemon files changed.
 - The GUI reconnects to the daemon socket when it becomes available.
 - Startup requests status/configuration; it does not force a cooling mode.
 - `AUTO` sends `{"request":"set_automatic"}` and waits for status confirmation.
 - `C` releases the Linux manual override with `set_manual` and `rpm: null`; it
   is not an alias for `AUTO`.
-- The system tray and resident lifecycle require verification on the target Linux
-  desktop and are not inferred from socket tests.
+- Live daemon survival after GUI Quit was not exercised in this slice; lifecycle
+  tests are isolated from hardware and the running daemon.
 
 ## Troubleshooting
 

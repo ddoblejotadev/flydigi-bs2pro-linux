@@ -178,6 +178,101 @@ private slots:
         inactiveGearColors.clear();
     }
 
+    void lightingSwitchMouseAndReadback()
+    {
+        view->resize(640, 1200);
+        report({{"reply", "status"}, {"connected", true}, {"lighting", QJsonObject{
+            {"mode", QJsonObject{{"mode", "static"}, {"color", QJsonObject{
+                {"r", 18}, {"g", 52}, {"b", 86}}}}}, {"brightness", 65}, {"indicators", false}}}});
+        auto *toggle = item("stripSwitch");
+        QVERIFY(toggle);
+        QVERIFY(toggle->isEnabled());
+        QVERIFY(toggle->property("checked").toBool());
+        QCOMPARE(toggle->property("text").toString(), QString("Strip on"));
+        click("stripSwitch");
+        QTRY_COMPARE(requests.size(), 1);
+        QCOMPARE(requests.last(), QByteArray(
+            "{\"lighting\":{\"brightness\":65,\"indicators\":false,\"mode\":{\"mode\":\"off\"}},\"request\":\"set_lighting\"}\n"));
+        QVERIFY(!toggle->property("checked").toBool());
+        QCOMPARE(toggle->property("text").toString(), QString("Strip off"));
+        click("stripSwitch");
+        QTRY_COMPARE(requests.size(), 2);
+        QCOMPARE(requests.last(), QByteArray(
+            "{\"lighting\":{\"brightness\":65,\"indicators\":false,\"mode\":{\"color\":{\"b\":86,\"g\":52,\"r\":18},\"mode\":\"static\"}},\"request\":\"set_lighting\"}\n"));
+        QVERIFY(toggle->property("checked").toBool());
+        // Readback must still update the binding after user interaction.
+        for (const auto &mode : {QString("off"), QString("effect"), QString("static"), QString("off")}) {
+            report({{"reply", "status"}, {"connected", true}, {"lighting", QJsonObject{
+                {"mode", QJsonObject{{"mode", mode}}}}}});
+            QCOMPARE(toggle->property("checked").toBool(), mode != "off");
+            QCOMPARE(toggle->property("text").toString(), mode != "off"
+                ? QString("Strip on") : QString("Strip off"));
+        }
+        QTest::qWait(200);
+        QCOMPARE(requests.size(), 2); // Readback never sends another request.
+        QCOMPARE(backend->lightColor(), QString("#123456"));
+        QCOMPARE(backend->lightBrightness(), 65);
+        QVERIFY(!backend->lightIndicators());
+    }
+
+    void lightingModeSelectorsPreserved()
+    {
+        view->resize(640, 1200);
+        report({{"reply", "status"}, {"connected", true}});
+        auto *toggle = item("stripSwitch");
+        QVERIFY(toggle);
+        const QList<QPair<QString, QByteArray>> selections{
+            {"static", "{\"lighting\":{\"brightness\":100,\"indicators\":true,\"mode\":{\"color\":{\"b\":238,\"g\":211,\"r\":34},\"mode\":\"static\"}},\"request\":\"set_lighting\"}\n"},
+            // Existing effect serialization is preserved, not newly verified schema.
+            {"effect", "{\"lighting\":{\"brightness\":100,\"colors\":[{\"b\":238,\"g\":211,\"r\":34}],\"indicators\":true,\"ledCount\":6,\"mode\":{\"effect\":5,\"mode\":\"effect\"},\"speed\":500},\"request\":\"set_lighting\"}\n"},
+            {"off", "{\"lighting\":{\"brightness\":100,\"indicators\":true,\"mode\":{\"mode\":\"off\"}},\"request\":\"set_lighting\"}\n"},
+        };
+        for (const auto &selection : selections) {
+            requests.clear();
+            click("lightMode_" + selection.first);
+            QTRY_COMPARE(requests.size(), 1);
+            QCOMPARE(requests.first(), selection.second);
+            QVERIFY(item("lightMode_" + selection.first)->property("selected").toBool());
+            QCOMPARE(toggle->property("checked").toBool(), selection.first != "off");
+        }
+    }
+
+    void lightingSwitchKeyboardAndDisconnect()
+    {
+        view->resize(640, 1200);
+        auto *toggle = item("stripSwitch");
+        QVERIFY(toggle);
+        report({{"reply", "status"}, {"connected", true}});
+        toggle->forceActiveFocus(Qt::TabFocusReason);
+        QVERIFY(toggle->hasActiveFocus());
+        QTest::keyClick(view.get(), Qt::Key_Space);
+        QTRY_COMPARE(requests.size(), 1);
+        QCOMPARE(requests.last(), QByteArray(
+            "{\"lighting\":{\"brightness\":100,\"indicators\":true,\"mode\":{\"color\":{\"b\":238,\"g\":211,\"r\":34},\"mode\":\"static\"}},\"request\":\"set_lighting\"}\n"));
+        QVERIFY(toggle->property("checked").toBool());
+        QTest::keyClick(view.get(), Qt::Key_Space);
+        QTRY_COMPARE(requests.size(), 2);
+        QCOMPARE(requests.last(), QByteArray(
+            "{\"lighting\":{\"brightness\":100,\"indicators\":true,\"mode\":{\"mode\":\"off\"}},\"request\":\"set_lighting\"}\n"));
+        report({{"reply", "status"}, {"connected", false}});
+        QVERIFY(!toggle->isEnabled());
+        QSignalSpy changed(backend.get(), &Backend::changed);
+        const auto position = toggle->mapToScene(
+            QPointF(toggle->width() / 2, toggle->height() / 2)).toPoint();
+        QTest::mouseClick(view.get(), Qt::LeftButton, Qt::NoModifier, position);
+        QTest::keyClick(view.get(), Qt::Key_Space);
+        QTest::qWait(200);
+        QCOMPARE(requests.size(), 2);
+        QCOMPARE(changed.count(), 0);
+        QVERIFY(!toggle->property("checked").toBool());
+        QCOMPARE(backend->lightMode(), QString("off"));
+        QCOMPARE(backend->lightColor(), QString("#22D3EE"));
+        QCOMPARE(backend->lightBrightness(), 100);
+        QVERIFY(backend->lightIndicators());
+        report({{"reply", "status"}, {"connected", true}});
+        QVERIFY(toggle->isEnabled());
+    }
+
     void automaticClickWaitsForStatus()
     {
         report({{"reply", "status"}, {"fixed_gear", true}, {"target_rpm", 1700},

@@ -2,15 +2,16 @@
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QFileInfo>
-#include <QGuiApplication>
+#include <QApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 
 #include "backend.h"
+#include "main.h"
 
 int main(int argc, char *argv[])
 {
-    QGuiApplication app(argc, argv);
+    QApplication app(argc, argv);
     QGuiApplication::setApplicationName(QStringLiteral("flydigi-space"));
     QGuiApplication::setApplicationDisplayName(QStringLiteral("Space Station"));
     QGuiApplication::setOrganizationName(QStringLiteral("flydigi-space"));
@@ -31,6 +32,7 @@ int main(int argc, char *argv[])
         backend.setSocketPath(parser.value(socketOption));
     backend.start();
 
+    ResidentWindow resident;
     QQmlApplicationEngine engine;
 
     // Qt looks for the QML module next to the binary only in a build tree. An
@@ -47,10 +49,16 @@ int main(int argc, char *argv[])
     }
 
     engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+    engine.rootContext()->setContextProperty(QStringLiteral("resident"), &resident);
     engine.loadFromModule(QStringLiteral("FlydigiSpace"), QStringLiteral("Main"));
 
     if (engine.rootObjects().isEmpty())
         return 1;
+
+    auto *window = qobject_cast<QWindow *>(engine.rootObjects().first());
+    if (!window)
+        return 1;
+    resident.setWindow(window);
 
     return app.exec();
 }

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import FlydigiSpace
 
@@ -8,14 +9,19 @@ Window {
     visible: true
     width: 1180
     height: 840
-    minimumWidth: 1000
-    minimumHeight: 780
+    minimumWidth: 820
+    minimumHeight: 560
     title: "Space Station — " + (backend.model.length > 0 ? backend.model : "Flydigi cooler")
     color: Theme.bg
 
+    onClosing: function(close) {
+        close.accepted = false
+        resident.hideWindow()
+    }
+
     Shortcut {
         sequence: "Escape"
-        onActivated: Qt.quit()
+        onActivated: resident.hideWindow()
     }
 
     // The same actions as the buttons, for when the pointer is busy elsewhere.
@@ -133,6 +139,13 @@ Window {
 
                 Item { Layout.fillWidth: true }
 
+                Button {
+                    objectName: "quitApplication"
+                    text: "Quit"
+                    Accessible.description: "Quit the GUI; the cooler daemon keeps running"
+                    onClicked: resident.quit()
+                }
+
                 Pill {
                     label: backend.connected ? "LIVE" : "NO DAEMON"
                     tone: backend.connected ? Theme.good : Theme.bad
@@ -210,20 +223,26 @@ Window {
                     }
                 }
 
-                ColumnLayout {
+                ScrollView {
+                    id: sideScroll
                     Layout.preferredWidth: 430
                     Layout.fillHeight: true
-                    spacing: 18
+                    clip: true
+                    ScrollBar.vertical.policy: ScrollBar.AsNeeded
+                    contentWidth: availableWidth
 
-                    TempList {
-                        Layout.fillWidth: true
+                    ColumnLayout {
+                        width: sideScroll.availableWidth
+                        spacing: 18
+
+                        TempList {
+                            Layout.fillWidth: true
+                        }
+
+                        Controls {
+                            Layout.fillWidth: true
+                        }
                     }
-
-                    Controls {
-                        Layout.fillWidth: true
-                    }
-
-                    Item { Layout.fillHeight: true }
                 }
             }
 

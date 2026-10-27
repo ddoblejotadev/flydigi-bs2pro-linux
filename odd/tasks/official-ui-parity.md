@@ -49,7 +49,78 @@ parity. No new wire fields or QML controls are invented. Full T2/T3 completion,
 S1 resident lifecycle, USB/Bluetooth, persistence, and hardware verification
 remain outside this unit. Differential verification is parent-owned.
 
+## Bounded strip switch (S2, S3)
+
+Added a native Qt Quick Switch alongside the existing OFF/COLOR/EFFECT selectors.
+It binds to `backend.stripOn`, calls the existing `backend.setStrip(checked)`,
+and is disabled while disconnected. Mouse and Space-key input are verified;
+the control has an accessible name and description. On selects the retained
+static color and brightness, not the previous effect; off selects mode `off`.
+Gear indicators and brightness are unchanged, including zero brightness.
+Selection is optimistic until daemon readback, not hardware-switch confirmation.
+No backend or wire-schema changes are part of this slice.
+
+This addresses an explicit usable on/off control under S2 and bounded S3, not
+full official RGB parity. S1, desktop screen-reader behavior, live hardware,
+persistence, and independent hardware-switch support remain unverified here.
+Current pre-existing effect serialization includes `colors`, `speed`, and
+`ledCount`, unlike the limited schema recorded in L9/L15; preserving those
+existing fields in a regression test does not verify daemon support for them.
+
+## Bounded resident window lifecycle (S1)
+
+Implemented a QApplication/Qt Widgets-backed system tray with **Show Space
+Station** and **Quit** actions. Close and Escape keep the GUI resident: hide when
+Qt reports a tray host, otherwise minimize for task-switcher recovery. A dashboard
+Quit button provides an explicit exit without a tray. Last-window-close does not
+terminate the event loop; restoration and explicit Quit are tested with the full
+QML dashboard. The existing dashboard sizing/scroll changes are preserved, with
+an explicit Qt Quick Controls import for those controls.
+
+No autostart, single-instance routing, new daemon messages, external daemon edits,
+or process/service management were added. The daemon remains independently
+managed. Backend subscription/reconnection and the QML engine stay alive while
+hidden; CPU/RAM savings are not measured. This covers a bounded T4/S1 slice, not
+full S1 or S2/S3 parity. Native tray display/menu activation, Wayland/X11 focus,
+host loss/reappearance, and live daemon survival still need verification. A tray
+host disappearing while hidden can strand the window until it returns; no watchdog
+or cross-process restoration is implemented.
+
 ## Log
+
+- L18 — Final pre-commit verification: removed obsolete untracked `src/backend.cpp.bak2`; `cmake --build build -j2` passed; `ctest --test-dir build --output-on-failure` passed all 3 targets (backend_cooling_test, resident_lifecycle_test, cooling_ui_test); `git diff --check` passed. Independent verifier was unavailable due to a subagent error, so the parent ran the applicable checks directly. No live tray-host, hardware USB/Bluetooth transition, or full official RGB protocol verification is claimed.
+
+- L17 — Bounded resident lifecycle (S1): RED `cmake --build build -j2` passed;
+  `ctest --test-dir build -R '^resident_lifecycle_test$' --output-on-failure`
+  exited 8 with two intended failures (Close accepted; Escape emitted QML quit).
+  GREEN: the same build passed; the focused test passed (0.97 s).
+  `ctest --test-dir build --output-on-failure` passed all three targets (15.77 s):
+  77 backend, 8 resident-lifecycle, and 31 controls QtTest passes, including
+  init/cleanup. Lifecycle tests exercise no-tray fallback, direct tray actions,
+  hidden-window event-loop survival, window-button Quit, and visible startup;
+  they do not emulate a native tray host or contact the daemon.
+  `git diff --check` passed. Build reported missing optional Vulkan headers and
+  existing Qt policy warnings. Full-dashboard loading also exposed the existing
+  Shortcut-in-Repeater warning (`Delegate must be of Item type`); left unchanged
+  as unrelated. Offscreen restoration warns that raise is unsupported, so native
+  focus is not claimed. No base-copy CLI differential run was authorized;
+  CLI parsing is unchanged and existing backend/control suites passed.
+  No autostart, external daemon changes, hardware checks, or commit. Pre-existing
+  tracked changes and `src/backend.cpp.bak2` preserved.
+
+- L16 — Bounded strip switch (S2/S3): `qml/Controls.qml` now exposes an accessible
+  on/off switch through the unchanged Backend API. RED: `cmake --build build -j2`
+  passed; `ctest --test-dir build -R '^cooling_ui_test$' --output-on-failure`
+  exited 8 with 28 passes and two intended missing-switch failures. GREEN: the
+  same build command passed; the UI CTest command passed (5.24 s), including
+  mouse/keyboard requests, exact nested on/off JSON, retained settings,
+  readback after interaction, disabled input without writes/state changes, and
+  preservation of all three existing lighting mode selectors.
+  `ctest --test-dir build -R '^backend_cooling_test$' --output-on-failure`
+  passed (8.89 s). No external daemon edits, hardware checks, or commit.
+  Prior working-tree changes preserved. Base-copy differential execution was
+  not among the authorized commands; existing selectors are regression-tested
+  instead, and Backend code is unchanged.
 
 - L15 — Bounded RGB model (S2/S3): added public one-color array validation and
   canonical readback; derived strip enabled state from mode. RED: build exit 0,

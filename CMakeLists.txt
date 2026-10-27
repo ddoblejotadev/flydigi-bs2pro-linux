@@ -5,7 +5,7 @@ project(flydigi-space VERSION 0.1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick)
+find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Qml Quick Widgets)
 
 qt_standard_project_setup()
 
@@ -13,6 +13,7 @@ set_source_files_properties(qml/Theme.qml PROPERTIES QT_QML_SINGLETON_TYPE TRUE)
 
 qt_add_executable(flydigi-space
     src/main.cpp
+    src/main.h
     src/backend.cpp
     src/backend.h
 )
@@ -34,6 +35,7 @@ target_link_libraries(flydigi-space PRIVATE
     Qt6::Gui
     Qt6::Qml
     Qt6::Quick
+    Qt6::Widgets
 )
 
 include(CTest)
@@ -47,6 +49,29 @@ if(BUILD_TESTING)
     target_include_directories(backend_cooling_test PRIVATE src)
     target_link_libraries(backend_cooling_test PRIVATE Qt6::Gui Qt6::Network Qt6::Test)
     add_test(NAME backend_cooling_test COMMAND backend_cooling_test)
+
+    qt_add_executable(resident_lifecycle_test
+        tests/resident_lifecycle_test.cpp
+        src/main.h
+        src/backend.cpp
+        src/backend.h
+    )
+    qt_add_qml_module(resident_lifecycle_test
+        URI FlydigiSpace
+        VERSION 1.0
+        RESOURCE_PREFIX /qt/qml
+        OUTPUT_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/resident-lifecycle/FlydigiSpace
+        QML_FILES qml/Theme.qml qml/Main.qml qml/Gauge.qml
+                  qml/TempList.qml qml/Controls.qml qml/Pill.qml
+    )
+    target_include_directories(resident_lifecycle_test PRIVATE src)
+    target_link_libraries(resident_lifecycle_test PRIVATE
+        Qt6::Quick Qt6::Widgets Qt6::Network Qt6::Test)
+    add_test(NAME resident_lifecycle_test COMMAND resident_lifecycle_test)
+    set_tests_properties(resident_lifecycle_test PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"
+        TIMEOUT 20
+    )
 
     qt_add_executable(cooling_ui_test
         tests/cooling_ui_test.cpp
