@@ -21,7 +21,7 @@ command -v dpkg-deb >/dev/null || {
 
 # Build the daemon
 echo "Building daemon..."
-cargo build --manifest-path daemon/Cargo.toml --offline --locked --release
+cargo build --manifest-path daemon/Cargo.toml --locked --release
 
 cmake --install "$build_dir" --prefix "$package_dir/usr"
 

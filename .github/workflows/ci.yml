@@ -43,13 +43,13 @@ jobs:
         run: cmake --build build --parallel
 
       - name: Build daemon
-        run: cargo build --manifest-path daemon/Cargo.toml --offline --locked --release
+        run: cargo build --manifest-path daemon/Cargo.toml --locked --release
 
       - name: Test GUI
         run: ctest --test-dir build --output-on-failure
 
       - name: Test daemon
-        run: cargo test --manifest-path daemon/Cargo.toml --offline --locked
+        run: cargo test --manifest-path daemon/Cargo.toml --locked
 
       - name: Check packaging scripts and whitespace
         run: |

@@ -37,7 +37,7 @@ Do not commit generated build output, `.deb` files, AppImages, `build/`, `daemon
 Before opening a PR:
 
 ```sh
-cargo test --offline --locked --manifest-path daemon/Cargo.toml
+cargo test --locked --manifest-path daemon/Cargo.toml
 cmake --build build --parallel 2
 ctest --test-dir build --output-on-failure
 ```

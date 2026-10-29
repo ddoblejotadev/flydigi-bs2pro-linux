@@ -52,8 +52,8 @@ jobs:
 
       - name: Build and test daemon
         run: |
-          cargo build --manifest-path daemon/Cargo.toml --offline --locked --release
-          cargo test --manifest-path daemon/Cargo.toml --offline --locked
+          cargo build --manifest-path daemon/Cargo.toml --locked --release
+          cargo test --manifest-path daemon/Cargo.toml --locked
 
       - name: Build Debian package
         run: packaging/build-deb.sh "$VERSION"

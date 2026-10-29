@@ -26,7 +26,7 @@ command -v linuxdeploy-plugin-qt >/dev/null || {
 
 # Build the daemon
 echo "Building daemon..."
-cargo build --manifest-path daemon/Cargo.toml --offline --locked --release
+cargo build --manifest-path daemon/Cargo.toml --locked --release
 
 rm -rf "$appdir"
 mkdir -p "$appdir/usr"
