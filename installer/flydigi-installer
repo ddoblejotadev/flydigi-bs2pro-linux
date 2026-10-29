@@ -1,0 +1,226 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly APP_NAME="flydigi-bs2pro-linux"
+readonly API_URL_DEFAULT="https://api.github.com/repos/ddoblejotadev/flydigi-bs2pro-linux/releases/latest"
+readonly RELEASE_API="${FLYDIGI_RELEASE_API:-$API_URL_DEFAULT}"
+readonly INSTALL_ROOT="${FLYDIGI_INSTALL_ROOT:-${XDG_DATA_HOME:-$HOME/.local/share}/flydigi-bs2pro-linux}"
+readonly DESKTOP_FILE="${FLYDIGI_DESKTOP_FILE:-${XDG_DATA_HOME:-$HOME/.local/share}/applications/flydigi-bs2pro-linux.desktop}"
+
+work_dir=""
+lock_dir=""
+
+cleanup() {
+    if [ -n "$lock_dir" ]; then
+        rmdir "$lock_dir" 2>/dev/null || true
+    fi
+    if [ -n "$work_dir" ]; then
+        rm -rf "$work_dir"
+    fi
+}
+trap cleanup EXIT INT TERM
+
+error() {
+    printf 'Error: %s\n' "$1" >&2
+    exit 1
+}
+
+require_tools() {
+    local tool
+    for tool in curl sha256sum python3; do
+        command -v "$tool" >/dev/null 2>&1 || error "required tool not found: $tool"
+    done
+}
+
+acquire_lock() {
+    mkdir -p "$INSTALL_ROOT"
+    lock_dir="$INSTALL_ROOT/.install.lock"
+    if ! mkdir "$lock_dir" 2>/dev/null; then
+        error "another installer operation is already running"
+    fi
+}
+
+fetch_release_json() {
+    work_dir="$(mktemp -d)"
+    curl --fail --silent --show-error --location --retry 3 "$RELEASE_API" -o "$work_dir/release.json"
+}
+
+release_fields() {
+    python3 - "$work_dir/release.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as stream:
+    release = json.load(stream)
+
+app = next((asset for asset in release.get("assets", [])
+            if asset.get("name", "").endswith("x86_64.AppImage")), None)
+sums = next((asset for asset in release.get("assets", [])
+             if asset.get("name", "").endswith("SHA256SUMS") or asset.get("name") == "SHA256SUMS"), None)
+if not release.get("tag_name") or not app or not sums:
+    raise SystemExit("release has no x86_64 AppImage and SHA256SUMS assets")
+
+print(release["tag_name"].removeprefix("v"))
+print(release.get("name") or release["tag_name"])
+print(app["name"])
+print(app["browser_download_url"])
+print(sums["browser_download_url"])
+print(release.get("body", "").replace("\r", ""))
+PY
+}
+
+current_target() {
+    [ -L "$INSTALL_ROOT/current" ] || return 1
+    readlink -f "$INSTALL_ROOT/current"
+}
+
+current_version() {
+    local target version
+    target="$(current_target 2>/dev/null)" || return 1
+    version="$(basename "$(dirname "$target")")"
+    [ -n "$version" ] && printf '%s\n' "$version"
+}
+
+write_desktop_file() {
+    local current_path="$INSTALL_ROOT/current"
+    mkdir -p "$(dirname "$DESKTOP_FILE")"
+    cat > "$DESKTOP_FILE" <<EOF
+[Desktop Entry]
+Type=Application
+Name=Flydigi BS2 Pro Control
+Comment=Control a Flydigi BS2 Pro cooler
+Exec="$current_path"
+Terminal=false
+Categories=System;HardwareSettings;Settings;
+Keywords=flydigi;cooler;fan;bs2;
+EOF
+}
+
+verify_checksum() {
+    local sums_url="$1" app_name="$2" app_path="$3" sums_path expected
+    sums_path="$work_dir/SHA256SUMS"
+    curl --fail --silent --show-error --location --retry 3 "$sums_url" -o "$sums_path"
+    expected="$(awk -v name="$app_name" '$0 ~ name {print $1; exit}' "$sums_path")"
+    [ "${#expected}" -eq 64 ] || error "SHA256SUMS does not contain $app_name"
+    printf '%s  %s\n' "$expected" "$app_path" | sha256sum --check --status - \
+        || error "checksum verification failed for $app_name"
+}
+
+download_release() {
+    local version="$1" app_name="$2" app_url="$3" sums_url="$4"
+    local target_dir="$INSTALL_ROOT/versions/$version"
+    local partial="$target_dir/.${app_name}.part"
+    local final="$target_dir/$app_name"
+
+    mkdir -p "$target_dir"
+    rm -f "$partial"
+    curl --fail --location --retry 3 --progress-bar "$app_url" -o "$partial"
+    verify_checksum "$sums_url" "$app_name" "$partial"
+    chmod 0755 "$partial"
+    mv -f "$partial" "$final"
+    printf '%s\n' "$final"
+}
+
+install_release() {
+    local version="$1" app_name="$2" app_url="$3" sums_url="$4"
+    local previous="" target final temp_link
+    target="$INSTALL_ROOT/versions/$version/$app_name"
+    previous="$(current_target 2>/dev/null || true)"
+
+    final="$(download_release "$version" "$app_name" "$app_url" "$sums_url")"
+    if [ -n "$previous" ] && [ "$previous" != "$final" ]; then
+        ln -sfn "${previous#$INSTALL_ROOT/}" "$INSTALL_ROOT/previous"
+    fi
+    temp_link="$INSTALL_ROOT/.current.$$"
+    ln -s "${final#$INSTALL_ROOT/}" "$temp_link"
+    mv -Tf "$temp_link" "$INSTALL_ROOT/current"
+    write_desktop_file
+    printf '\nInstalled %s at %s\n' "$version" "$INSTALL_ROOT/current"
+    if [ -n "$previous" ]; then
+        printf 'Previous version retained for rollback.\n'
+    fi
+}
+
+show_release() {
+    local fields version title app_name app_url sums_url notes
+    mapfile -t fields < <(release_fields)
+    version="${fields[0]}"; title="${fields[1]}"; app_name="${fields[2]}"
+    app_url="${fields[3]}"; sums_url="${fields[4]}"; notes="${fields[*]:5}"
+    printf '\n%s\nVersion: %s\n' "$title" "$version"
+    printf 'Installed: %s\n' "$(current_version 2>/dev/null || printf 'not installed')"
+    if [ -n "$notes" ]; then
+        printf '\nRelease notes:\n%s\n' "$notes"
+    fi
+    RELEASE_VERSION="$version" RELEASE_APP_NAME="$app_name" RELEASE_APP_URL="$app_url" RELEASE_SUMS_URL="$sums_url"
+}
+
+check_latest() {
+    fetch_release_json
+    show_release
+}
+
+install_latest() {
+    local fields version title app_name app_url sums_url notes answer
+    fetch_release_json
+    mapfile -t fields < <(release_fields)
+    version="${fields[0]}"; title="${fields[1]}"; app_name="${fields[2]}"
+    app_url="${fields[3]}"; sums_url="${fields[4]}"; notes="${fields[*]:5}"
+    printf '\n%s\nVersion: %s\nInstalled: %s\n' "$title" "$version" "$(current_version 2>/dev/null || printf 'not installed')"
+    [ -n "$notes" ] && printf '\nRelease notes:\n%s\n' "$notes"
+    if [ "${1:-}" != "--yes" ]; then
+        printf '\nInstall this version after checksum verification? [y/N] '
+        IFS= read -r answer
+        [[ "$answer" =~ ^[Yy]$ ]] || { printf 'Cancelled. No files changed.\n'; return 0; }
+    fi
+    install_release "$version" "$app_name" "$app_url" "$sums_url"
+}
+
+rollback() {
+    local previous target temp_link
+    previous="$INSTALL_ROOT/previous"
+    [ -L "$previous" ] || error "no previous version is available for rollback"
+    target="$(readlink -f "$previous")"
+    [ -x "$target" ] || error "previous version is missing or not executable"
+    temp_link="$INSTALL_ROOT/.current.$$"
+    ln -s "${target#$INSTALL_ROOT/}" "$temp_link"
+    mv -Tf "$temp_link" "$INSTALL_ROOT/current"
+    write_desktop_file
+    printf 'Rolled back to %s\n' "$(current_version)"
+}
+
+menu() {
+    local choice
+    while true; do
+        printf '\nFlydigi BS2 Pro Linux installer\n'
+        printf 'Installed version: %s\n\n' "$(current_version 2>/dev/null || printf 'not installed')"
+        printf '1) Check for updates\n2) Install latest version\n3) Roll back to previous version\n4) Exit\n\nChoose an action [1-4]: '
+        IFS= read -r choice || return 0
+        case "$choice" in
+            1) check_latest ;;
+            2) install_latest ;;
+            3) rollback ;;
+            4) return 0 ;;
+            *) printf 'Choose 1, 2, 3, or 4.\n' ;;
+        esac
+    done
+}
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [--check|--install [--yes]|--rollback]
+
+Interactive mode is used when no action is supplied. AppImage releases are
+verified against SHA256SUMS before the current version is replaced.
+EOF
+}
+
+require_tools
+acquire_lock
+case "${1:-}" in
+    "") menu ;;
+    --check) fetch_release_json; show_release ;;
+    --install) install_latest "${2:-}" ;;
+    --rollback) rollback ;;
+    --help|-h) usage ;;
+    *) usage; exit 2 ;;
+esac

@@ -75,6 +75,9 @@ jobs:
       - name: Build AppImage
         run: packaging/build-appimage.sh "$VERSION"
 
+      - name: Package interactive installer
+        run: install -Dm755 installer/flydigi-installer "dist/flydigi-installer"
+
       - name: Generate checksums
         run: sha256sum dist/* > "dist/flydigi-bs2pro-linux-${VERSION}-SHA256SUMS"
 
@@ -87,4 +90,5 @@ jobs:
           files: |
             dist/*.deb
             dist/*.AppImage
+            dist/flydigi-installer
             dist/*SHA256SUMS
