@@ -79,7 +79,12 @@ jobs:
         run: install -Dm755 installer/flydigi-installer "dist/flydigi-installer"
 
       - name: Generate checksums
-        run: sha256sum dist/* > "dist/flydigi-bs2pro-linux-${VERSION}-SHA256SUMS"
+        run: |
+          (
+            cd dist
+            sha256sum -- *.deb *.AppImage flydigi-installer \
+              > "flydigi-bs2pro-linux-${VERSION}-SHA256SUMS"
+          )
 
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
