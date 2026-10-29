@@ -43,10 +43,12 @@ Window {
     Repeater {
         model: [1, 2, 3, 4, 5]
 
-        delegate: Shortcut {
+        delegate: Item {
             required property int modelData
-            sequence: modelData.toString()
-            onActivated: backend.setLightEffect(modelData)
+            Shortcut {
+                sequence: modelData.toString()
+                onActivated: backend.setLightEffect(modelData)
+            }
         }
     }
 

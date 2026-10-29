@@ -32,14 +32,25 @@ jobs:
           modules: 'qtquickcontrols2'
           cache: true
 
-      - name: Configure
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
+      - name: Configure CMake
         run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
 
-      - name: Build
+      - name: Build GUI
         run: cmake --build build --parallel
 
-      - name: Test
+      - name: Build daemon
+        run: cargo build --manifest-path daemon/Cargo.toml --offline --locked --release
+
+      - name: Test GUI
         run: ctest --test-dir build --output-on-failure
+
+      - name: Test daemon
+        run: cargo test --manifest-path daemon/Cargo.toml --offline --locked
 
       - name: Check packaging scripts and whitespace
         run: |

@@ -162,6 +162,7 @@ private:
     QLocalSocket m_command;
     QLocalSocket m_stream;
     QTimer m_reconnect;
+    QTimer m_statusTimer;
     /// Lighting is written to the device a third of a second at a time, so a
     /// dragged slider coalesces into one write instead of thirty.
     QTimer m_lightTimer;

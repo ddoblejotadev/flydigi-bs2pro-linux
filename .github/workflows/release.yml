@@ -40,11 +40,21 @@ jobs:
           modules: 'qtquickcontrols2'
           cache: true
 
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+
       - name: Configure and test
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
           cmake --build build --parallel
           ctest --test-dir build --output-on-failure
+
+      - name: Build and test daemon
+        run: |
+          cargo build --manifest-path daemon/Cargo.toml --offline --locked --release
+          cargo test --manifest-path daemon/Cargo.toml --offline --locked
 
       - name: Build Debian package
         run: packaging/build-deb.sh "$VERSION"

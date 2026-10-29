@@ -221,20 +221,24 @@ private slots:
         report({{"reply", "status"}, {"connected", true}});
         auto *toggle = item("stripSwitch");
         QVERIFY(toggle);
-        const QList<QPair<QString, QByteArray>> selections{
-            {"static", "{\"lighting\":{\"brightness\":100,\"indicators\":true,\"mode\":{\"color\":{\"b\":238,\"g\":211,\"r\":34},\"mode\":\"static\"}},\"request\":\"set_lighting\"}\n"},
-            // Existing effect serialization is preserved, not newly verified schema.
-            {"effect", "{\"lighting\":{\"brightness\":100,\"colors\":[{\"b\":238,\"g\":211,\"r\":34}],\"indicators\":true,\"ledCount\":6,\"mode\":{\"effect\":5,\"mode\":\"effect\"},\"speed\":500},\"request\":\"set_lighting\"}\n"},
-            {"off", "{\"lighting\":{\"brightness\":100,\"indicators\":true,\"mode\":{\"mode\":\"off\"}},\"request\":\"set_lighting\"}\n"},
-        };
-        for (const auto &selection : selections) {
-            requests.clear();
-            click("lightMode_" + selection.first);
-            QTRY_COMPARE(requests.size(), 1);
-            QCOMPARE(requests.first(), selection.second);
-            QVERIFY(item("lightMode_" + selection.first)->property("selected").toBool());
-            QCOMPARE(toggle->property("checked").toBool(), selection.first != "off");
-        }
+
+        auto *off = item("lightMode_off");
+        auto *color = item("lightMode_static");
+        auto *effect = item("lightMode_effect");
+        QVERIFY(off && color && effect);
+        QVERIFY(off->isEnabled());
+        QVERIFY(!color->isEnabled());
+        QVERIFY(!effect->isEnabled());
+
+        requests.clear();
+        QTest::mouseClick(view.get(), Qt::LeftButton, Qt::NoModifier,
+                          color->mapToScene(QPointF(color->width() / 2, color->height() / 2)).toPoint());
+        QTest::mouseClick(view.get(), Qt::LeftButton, Qt::NoModifier,
+                          effect->mapToScene(QPointF(effect->width() / 2, effect->height() / 2)).toPoint());
+        QTest::qWait(100);
+        QCOMPARE(requests.size(), 0);
+        QVERIFY(off->property("selected").toBool());
+        QVERIFY(!toggle->property("checked").toBool());
     }
 
     void lightingSwitchKeyboardAndDisconnect()
@@ -305,22 +309,23 @@ private slots:
                 {"target_rpm", 1700}, {"curve_preset", "quiet"}});
         QVERIFY(item("curvePreset_quiet"));
         QVERIFY(item("curvePreset_quiet")->property("highlighted").toBool());
-        // Preserve the backend's initial index/repeated-selection suppression.
+        // Selecting the current curve resumes Auto when it is not active.
         click("curvePreset_quiet");
-        QTest::qWait(20);
-        QVERIFY(requests.isEmpty());
+        QTRY_COMPARE(requests.size(), 1);
+        QCOMPARE(requests.first(), QByteArray("{\"request\":\"set_automatic\"}\n"));
+        QVERIFY(item("curvePreset_quiet")->property("highlighted").toBool());
+        checkUi(true, false, {}, "Smart Speed active");
         for (const auto &name : {QString("performance"), QString("custom"), QString("quiet")}) {
             requests.clear();
             click("curvePreset_" + name);
-            QTRY_COMPARE(requests.size(), 2);
-            QCOMPARE(requests[0], QByteArray("{\"preset\":\"") + name.toUtf8()
+            QTRY_COMPARE(requests.size(), 1);
+            QCOMPARE(requests.first(), QByteArray("{\"preset\":\"") + name.toUtf8()
                      + "\",\"request\":\"set_curve_preset\"}\n");
-            QCOMPARE(requests[1], QByteArray("{\"request\":\"set_automatic\"}\n"));
-            QVERIFY(item("curvePreset_quiet")->property("highlighted").toBool());
-            checkUi(false, false, "quiet", "fixed gear: 1700 rpm");
+            // Highlight follows daemon readback, not the optimistic request.
+            checkUi(true, false, {}, "Smart Speed active");
             click("curvePreset_" + name);
             QTest::qWait(20);
-            QCOMPARE(requests.size(), 2);
+            QCOMPARE(requests.size(), 1);
         }
         report({{"reply", "status"}, {"connected", true}, {"smart_mode", true},
                 {"curve_preset", "performance"}});

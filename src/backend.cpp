@@ -15,19 +15,25 @@
 
 namespace {
 
-/// The daemon's own default, then the per-user path used when it runs under a
-/// user service rather than system-wide.
+/// Resolve the packaged user-service socket first, then retain the legacy
+/// system-wide and per-user flydigictl paths for development compatibility.
 QString resolveSocket()
 {
+    const QString runtime = qEnvironmentVariable("XDG_RUNTIME_DIR");
+    if (!runtime.isEmpty()) {
+        const QString packaged = runtime + QStringLiteral("/flydigi-bs2pro-linux.sock");
+        if (QFile::exists(packaged))
+            return packaged;
+    }
+
     const QString system = QStringLiteral("/run/flydigictl/flydigictl.sock");
     if (QFile::exists(system))
         return system;
 
-    const QString runtime = qEnvironmentVariable("XDG_RUNTIME_DIR");
     if (!runtime.isEmpty()) {
-        const QString user = runtime + QStringLiteral("/flydigictl.sock");
-        if (QFile::exists(user))
-            return user;
+        const QString legacy = runtime + QStringLiteral("/flydigictl.sock");
+        if (QFile::exists(legacy))
+            return legacy;
     }
 
     return system;
@@ -43,11 +49,11 @@ QString rowName(const QJsonObject &sensor)
 
     if (label == QLatin1String("Package id 0"))
         return QStringLiteral("CPU");
-    if (hwmon == QLatin1String("nvme") && label == QLatin1String("Composite"))
+    if ((hwmon == QLatin1String("nvme") || sensor.value("kind").toString() == QLatin1String("nvme")) && label == QLatin1String("Composite"))
         return QStringLiteral("NVMe");
-    if (hwmon == QLatin1String("acpitz"))
+    if (hwmon == QLatin1String("acpitz") || sensor.value("kind").toString() == QLatin1String("chassis"))
         return QStringLiteral("Chassis");
-    if (sensor.value("kind").toString() == QLatin1String("nvidia"))
+    if (sensor.value("kind").toString() == QLatin1String("gpu"))
         return label.isEmpty() ? QStringLiteral("GPU") : QStringLiteral("GPU ") + label;
     if (label.isEmpty())
         return hwmon;
@@ -62,11 +68,11 @@ int rowRank(const QJsonObject &sensor)
 
     if (label == QLatin1String("Package id 0"))
         return 0;
-    if (hwmon == QLatin1String("nvme") && label == QLatin1String("Composite"))
+    if ((hwmon == QLatin1String("nvme") || sensor.value("kind").toString() == QLatin1String("nvme")) && label == QLatin1String("Composite"))
         return 1;
-    if (sensor.value("kind").toString() == QLatin1String("nvidia"))
+    if (sensor.value("kind").toString() == QLatin1String("gpu"))
         return 2;
-    if (hwmon == QLatin1String("acpitz"))
+    if (hwmon == QLatin1String("acpitz") || sensor.value("kind").toString() == QLatin1String("chassis"))
         return 3;
     if (hwmon == QLatin1String("coretemp") || hwmon == QLatin1String("k10temp"))
         return 100; // a single core, only reached when nothing better exists
@@ -81,13 +87,15 @@ bool worthShowing(const QJsonObject &sensor)
     const QString hwmon = sensor.value("hwmon").toString();
     const QString label = sensor.value("label").toString();
 
-    if (sensor.value("kind").toString() == QLatin1String("nvidia"))
+    if (sensor.value("kind").toString() == QLatin1String("gpu"))
+        return true;
+    if (sensor.value("kind").toString() == QLatin1String("cpu") && label == QLatin1String("Package id 0"))
         return true;
     if (hwmon == QLatin1String("coretemp") || hwmon == QLatin1String("k10temp"))
         return label == QLatin1String("Package id 0");
-    if (hwmon == QLatin1String("nvme"))
+    if (hwmon == QLatin1String("nvme") || sensor.value("kind").toString() == QLatin1String("nvme"))
         return label == QLatin1String("Composite");
-    if (hwmon == QLatin1String("acpitz") || hwmon == QLatin1String("amdgpu"))
+    if (hwmon == QLatin1String("acpitz") || sensor.value("kind").toString() == QLatin1String("chassis") || sensor.value("kind").toString() == QLatin1String("gpu"))
         return true;
 
     return false;
@@ -109,6 +117,13 @@ Backend::Backend(QObject *parent)
     m_reconnect.setInterval(1000);
     m_reconnect.setSingleShot(false);
     connect(&m_reconnect, &QTimer::timeout, this, &Backend::tryConnect);
+
+    m_statusTimer.setInterval(1000);
+    m_statusTimer.setSingleShot(false);
+    connect(&m_statusTimer, &QTimer::timeout, this, [this] {
+        if (m_command.state() == QLocalSocket::ConnectedState)
+            send(QJsonObject{{QStringLiteral("request"), QStringLiteral("status")} });
+    });
 
     m_lightTimer.setInterval(140);
     m_lightTimer.setSingleShot(true);
@@ -167,6 +182,7 @@ void Backend::start()
 
     tryConnect();
     m_reconnect.start();
+    m_statusTimer.start();
 }
 
 void Backend::tryConnect()
@@ -216,7 +232,10 @@ void Backend::releaseManual()
 /// Explicitly request Smart Speed; status confirms the resulting mode.
 void Backend::setAutomatic()
 {
-    send(QJsonObject{{QStringLiteral("request"), QStringLiteral("set_automatic")}});
+    if (m_smartMode)
+        return;
+    m_smartMode = true;
+    send(QJsonObject{{QStringLiteral("request"), QStringLiteral("set_automatic")} });
 }
 
 /// Rewrite one of the four speeds stored in the cooler.
@@ -429,7 +448,15 @@ void Backend::dispatch(const QByteArray &line)
         applyGears(object);
     else if (reply == QLatin1String("config"))
         applyConfig(object);
-    else if (reply == QLatin1String("error"))
+    else if (reply == QLatin1String("ok")) {
+        const QJsonValue status = object.value(QStringLiteral("status"));
+        if (status.isObject())
+            applyStatus(status.toObject());
+        // Mutation readback is authoritative, then refresh both persistent
+        // snapshots and gear metadata so the visual state never waits for the
+        // next user click.
+        refreshAll();
+    } else if (reply == QLatin1String("error"))
         fail(object.value(QStringLiteral("message")).toString());
 }
 
@@ -636,17 +663,19 @@ void Backend::setCurvePreset(int preset)
 {
     // Clamp to valid presets: 0=Quiet, 1=Performance, 2=Custom
     preset = qBound(0, preset, 2);
-    if (preset == m_currentCurve)
-        return;
-
     static const QString names[]{QStringLiteral("quiet"), QStringLiteral("performance"),
                                  QStringLiteral("custom")};
+    const bool changedPreset = preset != m_currentCurve;
+    const bool resumeAuto = !m_smartMode;
+    if (!changedPreset && !resumeAuto)
+        return;
     m_currentCurve = preset;
-    send(QJsonObject{{QStringLiteral("request"), QStringLiteral("set_curve_preset")},
-                 {QStringLiteral("preset"), names[preset]}});
-    // When a curve is selected, activate Smart Speed if not already active
-    if (!m_smartMode) {
-        setAutomatic();
+    if (changedPreset) {
+        send(QJsonObject{{QStringLiteral("request"), QStringLiteral("set_curve_preset")},
+                         {QStringLiteral("preset"), names[preset]}});
     }
+    // Selecting the current curve is still an explicit request to resume Auto.
+    if (resumeAuto)
+        setAutomatic();
     emit changed();
 }

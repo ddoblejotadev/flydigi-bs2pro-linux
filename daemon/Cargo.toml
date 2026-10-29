@@ -1,0 +1,11 @@
+[package]
+name = "flydigi-bs2pro-linux-daemon"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "Owned Flydigi BS2 Pro Linux daemon"
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "2.0"

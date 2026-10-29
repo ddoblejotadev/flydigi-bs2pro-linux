@@ -4,11 +4,11 @@
 [![GitHub stars](https://img.shields.io/github/stars/ddoblejotadev/flydigi-bs2pro-linux?style=social)](https://github.com/ddoblejotadev/flydigi-bs2pro-linux/stargazers)
 [![License](https://img.shields.io/github/license/ddoblejotadev/flydigi-bs2pro-linux)](LICENSE)
 
-A native Qt 6/QML control panel for the Flydigi BS2 Pro cooler on Linux. It provides a resident desktop dashboard, official cooling gears, Smart Speed/AUTO, a bounded custom curve editor, and the lighting controls supported by the Linux daemon.
+A native Qt 6/QML control panel for the Flydigi BS2 Pro cooler on Linux. It provides a resident desktop dashboard, official cooling gears, Smart Speed/AUTO, a bounded custom curve editor, and the lighting controls supported by the **built-in Linux daemon**.
 
 ![Flydigi BS2 Pro dashboard](docs/screenshot.png)
 
-> **Important:** this GUI does not access HID devices directly. The separate `flydigictld` daemon owns hardware access and communicates with the GUI through a Unix socket.
+> **Architecture:** This project includes a **built-in daemon** that owns hardware access (HID/Bluetooth) and communicates with the GUI through a Unix socket. No external daemon dependency is required.
 
 ## Quick install
 
@@ -22,9 +22,9 @@ A native Qt 6/QML control panel for the Flydigi BS2 Pro cooler on Linux. It prov
    ```
 
 3. Double-click the AppImage to launch it. The application does not require a terminal.
-4. Install and start the separate `flydigictld` daemon using the instructions for your distribution below.
+4. The built-in daemon handles hardware access automatically.
 
-The AppImage contains the GUI and its Qt/QML runtime. It does **not** contain the daemon, HID permissions, or a system service.
+The AppImage contains the GUI, the built-in daemon, and the Qt/QML runtime. No external daemon dependency.
 
 ### Debian, Ubuntu, Linux Mint, and derivatives
 
@@ -36,9 +36,8 @@ The AppImage contains the GUI and its Qt/QML runtime. It does **not** contain th
    ```
 
 3. Open **Flydigi BS2 Pro Control** from the application menu.
-4. Install and start `flydigictld` separately.
 
-The `.deb` installs the executable, desktop entry, icon, and QML resources. It deliberately does not install or configure the daemon.
+The `.deb` installs the GUI, the built-in daemon, desktop entry, icon, and QML resources. No external daemon required.
 
 ### Arch Linux and Omarchy
 
@@ -64,17 +63,36 @@ Categories=System;HardwareSettings;Settings;
 
 Replace `YOUR_USER`, copy `packaging/flydigi-bs2pro-linux.svg` to `~/.local/share/icons/hicolor/scalable/apps/`, and refresh the desktop database if your environment requires it. Omarchy users can then launch it from the application launcher.
 
-## Install the daemon separately
+### Build from source
 
-The GUI requires the external [`flydigictl`](https://github.com/ElXreno/flydigictl) daemon. Install the daemon using its documented package/build instructions, then start `flydigictld` as a user service or command appropriate for your distribution. Confirm that one of these sockets exists before launching the GUI:
+Dependencies: Linux, Qt 6.5+ (`Core`, `Gui`, `Qml`, `Quick`, `Network`, `Widgets`, `Test`), Rust 1.75+, and CMake 3.21+.
 
 ```sh
-ls -l /run/flydigictl/flydigictl.sock 2>/dev/null
-ls -l "$XDG_RUNTIME_DIR/flydigictl.sock" 2>/dev/null
-pgrep -a flydigictld
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
+cmake --build build -j"$(nproc)"
+ctest --test-dir build --output-on-failure
+cmake --install build --prefix "$HOME/.local"
 ```
 
-The GUI never starts, stops, or reconfigures the daemon. This separation keeps the AppImage and `.deb` portable and avoids silently changing HID or service permissions.
+The installed executable is `flydigi-bs2pro-linux`; the daemon is built and installed as `flydigi-bs2pro-linux-daemon`; the desktop entry appears as **Flydigi BS2 Pro Control**.
+
+## Architecture
+
+```
+┌─────────────────┐     Unix socket      ┌──────────────────┐
+│   GUI (Qt/QML)  │ ◄──────────────────► │  Built-in Daemon │
+└─────────────────┘  (newline JSON)      └────────┬─────────┘
+                                                  │
+                                    ┌─────────────┴─────────────┐
+                                    ▼                           ▼
+                              HID USB                        Bluetooth
+                                    │                           │
+                              /dev/hidraw*                    /dev/hidraw*
+```
+
+- **GUI** (`flydigi-bs2pro-linux`): Qt 6/QML resident dashboard with system tray integration.
+- **Daemon** (`flydigi-bs2pro-linux-daemon`): Owns HID/Bluetooth access, exposes newline-delimited JSON over Unix socket at `/run/user/$UID/flydigi-bs2pro-linux.sock`.
+- **No external daemon required** — the daemon is built and shipped with the project.
 
 ## What works
 
@@ -98,9 +116,10 @@ The GUI never starts, stops, or reconfigures the daemon. This separation keeps t
 
 ### Lighting
 
-- Off, static color, supported numeric effects, brightness 0–100, and gear indicators.
+- Verified side-strip ON/OFF control with daemon ACK and `0x45` readback.
 - Accessible Strip on/off switch with mouse and keyboard support.
-- Invalid colors and unsupported multi-color requests are rejected before writing.
+- Brightness, custom colors, presets, and animated effects remain disabled until BS2 Pro-specific frames and pattern readback are verified.
+- The official Windows lighting data model was analyzed for future work, but it is not treated as proof of Linux HID-frame compatibility.
 
 ### Resident desktop behavior
 
@@ -125,50 +144,43 @@ Exact vendor curve values from the Windows application are not claimed as verifi
 
 A local offscreen Release measurement of the installed GUI kept the process alive for 5 seconds with approximately **123 MiB RSS** and **0.00% process CPU** during a 5-second idle sample. This is a Qt/QML desktop baseline, not a claim about every compositor or hardware setup. The GUI remains resident while hidden; its CPU/RAM usage is not artificially throttled.
 
-The GUI uses `QLocalSocket` only, does not execute shell commands, spawn processes, write HID devices, or request elevated privileges. Socket ownership and access permissions remain the daemon's security boundary. Packages do not install services, modify udev rules, or broaden device permissions.
-
-## Build from source
-
-Dependencies: Linux, Qt 6.5+ (`Core`, `Gui`, `Qml`, `Quick`, `Network`, `Widgets`, and `Test` for tests), and CMake 3.21+.
-
-```sh
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
-cmake --build build -j"$(nproc)"
-ctest --test-dir build --output-on-failure
-cmake --install build --prefix "$HOME/.local"
-```
-
-The installed executable is `flydigi-bs2pro-linux`; the desktop entry appears as **Flydigi BS2 Pro Control**.
+The GUI uses `QLocalSocket` only, does not execute shell commands, spawn processes, write HID devices, or request elevated privileges. Socket ownership and access permissions remain the daemon's security boundary. The built-in daemon runs with minimal privileges and uses `hidraw` character devices directly; packages do not install services, modify udev rules, or broaden device permissions.
 
 ## Build release artifacts
 
 The repository includes reproducible packaging entry points:
 
 ```sh
-# Requires linuxdeploy and appimagetool
+# Requires linuxdeploy, linuxdeploy-plugin-qt, and appimagetool
 packaging/build-appimage.sh 0.1.0
 
 # Requires dpkg-deb; normally run on Debian/Ubuntu or CI
 packaging/build-deb.sh 0.1.0
 ```
 
-Both scripts package the GUI only. The daemon remains a separately installed dependency.
+Both scripts package the GUI and the built-in daemon. No external daemon dependency.
 
 ## Troubleshooting
 
 ### The GUI shows “NO DAEMON”
 
-Check the daemon process and socket:
+Check the built-in daemon process and socket:
 
 ```sh
-pgrep -a flydigictld
-ls -la /run/flydigictl/flydigictl.sock "$XDG_RUNTIME_DIR/flydigictl.sock" 2>/dev/null
+pgrep -a flydigi-bs2pro-linux-daemon
+ls -l /run/user/$UID/flydigi-bs2pro-linux.sock
 ```
 
-Start `flydigictld` using its documented service/command and relaunch the GUI. For a custom socket:
+Start the daemon manually if needed:
 
 ```sh
-flydigi-bs2pro-linux --socket /path/to/flydigictl.sock
+flydigi-bs2pro-linux-daemon
+```
+
+For a custom socket:
+
+```sh
+flydigi-bs2pro-linux --socket /path/to/daemon.sock
 ```
 
 ### A control appears inactive

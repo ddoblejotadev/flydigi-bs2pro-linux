@@ -289,7 +289,7 @@ private slots:
         if (!smart)
             QCOMPARE(wireRequests.last(), QByteArray("{\"request\":\"set_automatic\"}\n"));
         QCOMPARE(backend->currentCurve(), qBound(0, preset, 2));
-        QCOMPARE(backend->smartMode(), smart);
+        QVERIFY(backend->smartMode());
         QCOMPARE(changed.count(), 1);
         backend->setCurvePreset(preset);
         QTest::qWait(30);
@@ -385,7 +385,7 @@ private slots:
         QTRY_COMPARE(requests.size(), 1);
         QCOMPARE(requests.first(), expected);
         QCOMPARE(changed.count(), 0);
-        QCOMPARE(backend->property("smartMode"), smart);
+        QCOMPARE(backend->property("smartMode"), operation == 0 ? QVariant(true) : smart);
         QCOMPARE(backend->property("fixedGear"), fixed);
         QCOMPARE(backend->property("curvePreset"), preset);
         QVERIFY(!backend->manual());

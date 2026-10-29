@@ -24,9 +24,35 @@ command -v linuxdeploy-plugin-qt >/dev/null || {
   exit 1
 }
 
+# Build the daemon
+echo "Building daemon..."
+cargo build --manifest-path daemon/Cargo.toml --offline --locked --release
+
 rm -rf "$appdir"
 mkdir -p "$appdir/usr"
 cmake --install "$build_dir" --prefix "$appdir/usr"
+
+# Install the daemon binary
+mkdir -p "$appdir/usr/bin"
+install -m755 daemon/target/release/flydigi-bs2pro-linux-daemon "$appdir/usr/bin/flydigi-bs2pro-linux-daemon"
+
+# Create a wrapper script that starts the daemon before the GUI
+cat > "$appdir/usr/bin/flydigi-bs2pro-linux-wrapper" <<'EOF'
+#!/usr/bin/env bash
+set -e
+DAEMON_BIN="/usr/bin/flydigi-bs2pro-linux-daemon"
+DAEMON_SOCK="${FLYDIGI_SOCKET:-/run/user/$UID/flydigi-bs2pro-linux.sock}"
+
+# Start daemon if not running
+if ! pgrep -x "flydigi-bs2pro-linux-daemon" >/dev/null 2>&1; then
+    "$DAEMON_BIN" &
+    sleep 1
+fi
+
+# Launch GUI
+exec /usr/bin/flydigi-bs2pro-linux --socket "$DAEMON_SOCK"
+EOF
+chmod +x "$appdir/usr/bin/flydigi-bs2pro-linux-wrapper"
 
 linuxdeploy \
   --appdir "$appdir" \
@@ -34,7 +60,7 @@ linuxdeploy \
   --icon-file "$root_dir/packaging/flydigi-bs2pro-linux.svg" \
   --plugin qt \
   --output appimage \
-  --executable "$appdir/usr/bin/flydigi-bs2pro-linux"
+  --executable "$appdir/usr/bin/flydigi-bs2pro-linux-wrapper"
 
 mkdir -p "$out_dir"
 # linuxdeploy writes the final file in the current directory; normalize its name.

@@ -261,6 +261,21 @@ Rectangle {
             }
         }
 
+        Text {
+            objectName: "autoTelemetry"
+            Layout.fillWidth: true
+            text: {
+                var cpu = backend.temps.find(function (row) { return row.name === "CPU"; });
+                var temp = cpu ? cpu.value + "°C CPU Package" : "temperature sensor unavailable";
+                var curve = backend.curvePreset ? backend.curvePreset : "community provisional";
+                return temp + " · curve: " + curve + " · target: " + backend.targetRpm + " rpm · actual: " + backend.currentRpm + " rpm";
+            }
+            color: Theme.muted
+            font.family: Theme.ui
+            font.pixelSize: 10
+            elide: Text.ElideRight
+        }
+
         Rectangle {
             Layout.fillWidth: true
             height: 1
@@ -543,13 +558,25 @@ Rectangle {
                         font.letterSpacing: 0.8
                     }
 
+                    enabled: modelData.value === "off"
+                    opacity: enabled ? 1.0 : 0.45
+
                     MouseArea {
                         anchors.fill: parent
-                        cursorShape: Qt.PointingHandCursor
-                        onClicked: backend.setLightMode(parent.modelData.value)
+                        cursorShape: enabled ? Qt.PointingHandCursor : Qt.ArrowCursor
+                        onClicked: if (enabled) backend.setLightMode(parent.modelData.value)
                     }
                 }
             }
+        }
+
+        Text {
+            Layout.fillWidth: true
+            text: "Presets, brightness, and custom colors are unavailable while firmware couples lighting to realtime cooling."
+            color: Theme.muted
+            font.family: Theme.ui
+            font.pixelSize: 10
+            wrapMode: Text.WordWrap
         }
 
         Switch {
@@ -571,6 +598,8 @@ Rectangle {
             Layout.fillWidth: true
             spacing: 6
             visible: backend.lightMode === "static"
+            enabled: false
+            opacity: 0.45
 
             Repeater {
                 model: ["#22D3EE", "#3B82F6", "#8B5CF6", "#EC4899",
@@ -605,6 +634,8 @@ Rectangle {
             Layout.fillWidth: true
             spacing: 6
             visible: backend.lightMode === "effect"
+            enabled: false
+            opacity: 0.45
 
             Repeater {
                 model: [
@@ -652,6 +683,8 @@ Rectangle {
             Layout.fillWidth: true
             spacing: 10
             visible: backend.lightMode !== "off"
+            enabled: false
+            opacity: 0.45
 
             Text {
                 text: "BRIGHTNESS"
@@ -723,6 +756,8 @@ Rectangle {
             Layout.fillWidth: true
             spacing: 10
             visible: backend.lightMode === "effect"
+            enabled: false
+            opacity: 0.45
 
             Text {
                 text: "EFFECT SPEED"
