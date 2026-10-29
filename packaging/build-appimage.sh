@@ -39,28 +39,37 @@ install -m755 daemon/target/release/flydigi-bs2pro-linux-daemon "$appdir/usr/bin
 # Create a wrapper script that starts the daemon before the GUI
 cat > "$appdir/usr/bin/flydigi-bs2pro-linux-wrapper" <<'EOF'
 #!/usr/bin/env bash
-set -e
-DAEMON_BIN="/usr/bin/flydigi-bs2pro-linux-daemon"
-DAEMON_SOCK="${FLYDIGI_SOCKET:-/run/user/$UID/flydigi-bs2pro-linux.sock}"
+set -euo pipefail
+app_root="${APPDIR:-}"
+if [ -n "$app_root" ]; then
+    daemon_bin="$app_root/usr/bin/flydigi-bs2pro-linux-daemon"
+    gui_bin="$app_root/usr/bin/flydigi-bs2pro-linux"
+else
+    daemon_bin="/usr/bin/flydigi-bs2pro-linux-daemon"
+    gui_bin="/usr/bin/flydigi-bs2pro-linux"
+fi
+daemon_sock="${FLYDIGI_SOCKET:-${XDG_RUNTIME_DIR:-/run/user/$UID}/flydigi-bs2pro-linux.sock}"
 
-# Start daemon if not running
+# Start daemon if not running.
 if ! pgrep -x "flydigi-bs2pro-linux-daemon" >/dev/null 2>&1; then
-    "$DAEMON_BIN" &
+    "$daemon_bin" &
     sleep 1
 fi
 
-# Launch GUI
-exec /usr/bin/flydigi-bs2pro-linux --socket "$DAEMON_SOCK"
+exec "$gui_bin" --socket "$daemon_sock"
 EOF
 chmod +x "$appdir/usr/bin/flydigi-bs2pro-linux-wrapper"
 
+# linuxdeploy expects ELF executables here; the shell wrapper remains the
+# desktop entrypoint but must not be passed as an executable for ELF scanning.
 linuxdeploy \
   --appdir "$appdir" \
   --desktop-file "$root_dir/packaging/flydigi-bs2pro-linux.desktop" \
   --icon-file "$root_dir/packaging/flydigi-bs2pro-linux.svg" \
   --plugin qt \
   --output appimage \
-  --executable "$appdir/usr/bin/flydigi-bs2pro-linux-wrapper"
+  --executable "$appdir/usr/bin/flydigi-bs2pro-linux" \
+  --executable "$appdir/usr/bin/flydigi-bs2pro-linux-daemon"
 
 mkdir -p "$out_dir"
 # linuxdeploy writes the final file in the current directory; normalize its name.
