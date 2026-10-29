@@ -1,0 +1,5 @@
+# Grant the active desktop user access to supported Flydigi hidraw devices.
+# uaccess is session-scoped; it does not make the device world-writable.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="37d7", ATTRS{idProduct}=="1002", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="37d7", ATTRS{idProduct}=="1003", TAG+="uaccess"
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="37d7", ATTRS{idProduct}=="1004", TAG+="uaccess"

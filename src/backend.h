@@ -4,6 +4,7 @@
 #include <QJsonObject>
 #include <QLocalSocket>
 #include <QObject>
+#include <QStringList>
 #include <QTimer>
 #include <QVariantList>
 
@@ -31,13 +32,21 @@ class Backend : public QObject
     Q_PROPERTY(bool stripOn READ stripOn NOTIFY changed)
     Q_PROPERTY(QString lightMode READ lightMode NOTIFY changed)
     Q_PROPERTY(QString lightColor READ lightColor NOTIFY changed)
+    Q_PROPERTY(QStringList lightColors READ lightColors NOTIFY changed)
+    Q_PROPERTY(int lightColorLimit READ lightColorLimit CONSTANT)
     Q_PROPERTY(int lightEffect READ lightEffect NOTIFY changed)
     Q_PROPERTY(int lightBrightness READ lightBrightness NOTIFY changed)
+    Q_PROPERTY(int lightSpeed READ lightSpeed NOTIFY changed)
     Q_PROPERTY(bool lightIndicators READ lightIndicators NOTIFY changed)
     Q_PROPERTY(bool configWritable READ configWritable NOTIFY changed)
     Q_PROPERTY(QVariantList temps READ temps NOTIFY changed)
     Q_PROPERTY(QVariantList gears READ gears NOTIFY changed)
     Q_PROPERTY(QVariantList demands READ demands NOTIFY changed)
+    Q_PROPERTY(bool smartMode READ smartMode NOTIFY changed)
+    Q_PROPERTY(bool fixedGear READ fixedGear NOTIFY changed)
+    Q_PROPERTY(QString curvePreset READ curvePreset NOTIFY changed)
+    Q_PROPERTY(int currentCurve READ currentCurve NOTIFY changed)
+    Q_PROPERTY(QVariantList curves READ curves NOTIFY changed)
     Q_PROPERTY(QString problem READ problem NOTIFY changed)
 
 public:
@@ -54,15 +63,26 @@ public:
     bool manual() const { return m_manual; }
     int manualRpm() const { return m_manualRpm; }
     int supplyMaxRpm() const { return m_supplyMaxRpm; }
+    bool smartMode() const { return m_smartMode; }
+    bool fixedGear() const { return m_fixedGear; }
+    QString curvePreset() const { return m_curvePreset; }
+    int currentCurve() const { return m_currentCurve; }
+    /// Daemon curve objects, including their points; no preset/index mapping implied.
+    QVariantList curves() const { return m_curves; }
     QString supply() const { return m_supply; }
     QString transport() const { return m_transport; }
     QString leading() const { return m_leading; }
     QString standby() const { return m_standby; }
-    bool stripOn() const { return m_stripOn; }
+    /// Enabled according to the selected/reported mode, not a hardware switch query.
+    bool stripOn() const { return m_lightMode != QLatin1String("off"); }
     QString lightMode() const { return m_lightMode; }
     QString lightColor() const { return m_lightColor; }
+    /// Retained static selection, not the colors of a built-in effect.
+    QStringList lightColors() const;
+    int lightColorLimit() const { return 1; }
     int lightEffect() const { return m_lightEffect; }
     int lightBrightness() const { return m_lightBrightness; }
+    int lightSpeed() const { return m_lightSpeed; }
     bool lightIndicators() const { return m_lightIndicators; }
     bool configWritable() const { return m_configWritable; }
     QVariantList temps() const { return m_temps; }
@@ -79,6 +99,15 @@ public slots:
 
     /// Give the cooler back to its fan curves.
     void releaseManual();
+    void setAutomatic();
+    /// UI indices 0/1/2 map to daemon names quiet/performance/custom.
+    void setCurvePreset(int preset);
+
+    /// Submit exactly eight {temp_c, rpm} points: integral 30..100 C,
+    /// strictly increasing temperatures, RPM 500..min(supplyMaxRpm, 4000).
+    /// Returns false without side effects for invalid input or no connection.
+    /// True means submitted, not acknowledged or persisted. Readback is daemon-owned.
+    bool setCustomCurve(const QVariantList &points);
 
     /// Rewrite one of the four speeds stored in the cooler.
     void writeGear(const QString &name, int rpm);
@@ -96,11 +125,20 @@ public slots:
     /// A solid colour, given as "#RRGGBB". Also switches to static mode.
     void setLightColor(const QString &color);
 
+    /// Accept exactly one #RRGGBB color and select static mode. Empty, malformed
+    /// or multi-color input returns false without changing state or scheduling a
+    /// write. True means a local debounced edit, not delivery or persistence.
+    /// The current daemon has no verified sequence or animation-speed fields.
+    bool setLightColors(const QStringList &colors);
+
     /// One of the five presets burned into the firmware (1-5).
     void setLightEffect(int effect);
 
     /// Strip brightness, 0-100. The gear lights keep their own setting.
     void setLightBrightness(int percent);
+
+    /// Animation speed in the official 10..2550 scale.
+    void setLightSpeed(int speed);
 
     /// The small LEDs behind the gear marks, which are a separate light.
     void setLightIndicators(bool on);
@@ -124,6 +162,7 @@ private:
     QLocalSocket m_command;
     QLocalSocket m_stream;
     QTimer m_reconnect;
+    QTimer m_statusTimer;
     /// Lighting is written to the device a third of a second at a time, so a
     /// dragged slider coalesces into one write instead of thirty.
     QTimer m_lightTimer;
@@ -138,16 +177,21 @@ private:
     int m_targetRpm = 0;
     bool m_manual = false;
     int m_manualRpm = 0;
+    bool m_smartMode = false;
+    bool m_fixedGear = false;
+    QString m_curvePreset;
+    int m_currentCurve = 0;
+    QVariantList m_curves;
     int m_supplyMaxRpm = 4000;
     QString m_supply;
     QString m_transport;
     QString m_leading;
     QString m_standby = QStringLiteral("delayed");
-    bool m_stripOn = true;
     QString m_lightMode = QStringLiteral("off");
     QString m_lightColor = QStringLiteral("#22D3EE");
     int m_lightEffect = 5;
     int m_lightBrightness = 100;
+    int m_lightSpeed = 500;
     bool m_lightIndicators = true;
     bool m_configWritable = true;
     QVariantList m_temps;

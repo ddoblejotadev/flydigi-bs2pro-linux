@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
-Name=Space Station
+Name=Flydigi BS2 Pro Control
 GenericName=Flydigi cooler control
 Comment=Control a Flydigi BS series laptop cooler
-Exec=flydigi-space
-Icon=flydigi-space
+Exec=flydigi-bs2pro-linux
+Icon=flydigi-bs2pro-linux
 Terminal=false
 Categories=System;HardwareSettings;Settings;
 Keywords=flydigi;cooler;fan;bs2;bs3;

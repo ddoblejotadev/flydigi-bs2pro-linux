@@ -7,104 +7,62 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  build-and-test:
-    runs-on: linux-latest
+  build-test-package:
+    name: Build, test, and stage Linux package
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake ninja-build pkg-config
 
       - name: Install Qt 6
-        uses: jurplel/install-qt-action@v3
+        uses: jurplel/install-qt-action@v4
         with:
-          qt: '6.7.0'
-          components: 'core,gui,widgets,quick'
+          version: '6.7.3'
+          cache: true
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
 
       - name: Configure CMake
-        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+        run: cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=ON
 
-      - name: Build
-        run: cmake --build build -j"$(nproc)"
+      - name: Build GUI
+        run: cmake --build build --parallel
 
-      - name: Test (if test runner exists)
+      - name: Build daemon
+        run: cargo build --manifest-path daemon/Cargo.toml --locked --release
+
+      - name: Test GUI
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Test daemon
+        run: cargo test --manifest-path daemon/Cargo.toml --locked
+
+      - name: Check packaging scripts and whitespace
         run: |
-          if [ -f test_runner ]; then
-            ./test_runner
-          elif [ -d tests ]; then
-            ctest --test-dir build --output-on-failure
-          else
-            echo "No test runner found, skipping"
-          fi
+          bash -n packaging/build-appimage.sh packaging/build-deb.sh
+          git diff --check
 
-      - name: Generate release tag
-        id: tag
-        run: |
-          # Get next version
-          LAST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
-          MAJOR=$(echo $LAST_TAG | cut -d. -f1 | sed 's/v//')
-          MINOR=$(echo $LAST_TAG | cut -d. -f2)
-          PATCH=$(echo $LAST_TAG | cut -d. -f3)
-          NEW_PATCH=$((PATCH + 1))
-          NEW_TAG="v${MAJOR}.${MINOR}.${NEW_PATCH}"
-          echo "new_tag=$NEW_TAG" >> $GITHUB_OUTPUT
+      - name: Stage install tree
+        run: cmake --install build --prefix "$RUNNER_TEMP/flydigi-bs2pro-linux"
 
-      - name: Create release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.tag.outputs.new_tag }}
-          name: "Release ${{ steps.tag.outputs.new_tag }}"
-          body: |
-            ## What's changed
-
-            - Initial build from main branch
-            - Qt 6.7.0 with Release configuration
-            - All S1-S9 specifications implemented
-            - Lighting protocol REA-corrected
-            - Gear presets with supply gating
-            - System tray integration
-
-            ## Install
-
-            ```bash
-            # Download from release page or build from source
-            cd /tmp
-            curl -LJO https://github.com/ddoblejotadev/flydigi-bs2pro-linux/releases/download/${{ steps.tag.outputs.new_tag }}/flydigi-bs2pro-linux-${{ steps.tag.outputs.new_tag#v }}-linux-x86_64.tar.xz
-            tar xf flydigi-bs2pro-linux-${{ steps.tag.outputs.new_tag#v }}-linux-x86_64.tar.xz
-            mv flydigi-bs2pro-linux-${{ steps.tag.outputs.new_tag#v }}-linux-x86_64/flydigi-bs2pro-linux ~/.local/bin/
-            mv flydigi-bs2pro-linux-${{ steps.tag.outputs.new_tag#v }}-linux-x86_64/FlydigiSpace ~/.local/share/
-            cp flydigi-bs2pro-linux-${{ steps.tag.outputs.new_tag#v }}-linux-x86_64/flydigi-bs2pro-linux.desktop ~/.local/share/applications/
-            cp flydigi-bs2pro-linux-${{ steps.tag.outputs.new_tag#v }}-linux-x86_64/flydigi-bs2pro-linux.svg ~/.local/share/icons/hicolor/scalable/apps/
-            flydigi-bs2pro-linux
-            ```
-
-            ## Verifying install
-
-            ```bash
-            # Check binary
-            flydigi-bs2pro-linux --help
-
-            # Check daemon is running
-            pgrep -a flydigictl
-
-            # Check socket
-            ls -la $XDG_RUNTIME_DIR/flydigictl.sock 2>/dev/null || echo "Set XDG_RUNTIME_DIR if needed"
-            ```
-
-            ## Known issues
-
-            - See [Troubleshooting](README.md#troubleshooting)
-            - Report bugs at: https://github.com/ddoblejotadev/flydigi-bs2pro-linux/issues
-          }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Upload artifact (optional)
+      - name: Upload staged install
         uses: actions/upload-artifact@v4
         with:
-          name: flydigi-bs2pro-linux-build
-          path: build/
-          retention-days: 7
+          name: flydigi-bs2pro-linux-install-${{ github.sha }}
+          path: ${{ runner.temp }}/flydigi-bs2pro-linux
+          if-no-files-found: error
+          retention-days: 14

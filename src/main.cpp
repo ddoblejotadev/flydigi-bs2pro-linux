@@ -2,19 +2,20 @@
 #include <QCommandLineParser>
 #include <QCoreApplication>
 #include <QFileInfo>
-#include <QGuiApplication>
+#include <QApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
 
 #include "backend.h"
+#include "main.h"
 
 int main(int argc, char *argv[])
 {
-    QGuiApplication app(argc, argv);
-    QGuiApplication::setApplicationName(QStringLiteral("flydigi-space"));
+    QApplication app(argc, argv);
+    QGuiApplication::setApplicationName(QStringLiteral("flydigi-bs2pro-linux"));
     QGuiApplication::setApplicationDisplayName(QStringLiteral("Space Station"));
-    QGuiApplication::setOrganizationName(QStringLiteral("flydigi-space"));
-    QGuiApplication::setDesktopFileName(QStringLiteral("flydigi-space"));
+    QGuiApplication::setOrganizationName(QStringLiteral("flydigi-bs2pro-linux"));
+    QGuiApplication::setDesktopFileName(QStringLiteral("flydigi-bs2pro-linux"));
 
     QCommandLineParser parser;
     parser.setApplicationDescription(QStringLiteral("Flydigi BS series cooler dashboard"));
@@ -31,14 +32,15 @@ int main(int argc, char *argv[])
         backend.setSocketPath(parser.value(socketOption));
     backend.start();
 
+    ResidentWindow resident;
     QQmlApplicationEngine engine;
 
     // Qt looks for the QML module next to the binary only in a build tree. An
     // installed copy keeps it under share, so point the engine there.
     const QString appDir = QCoreApplication::applicationDirPath();
     const QStringList importRoots{
-        appDir + QStringLiteral("/../share/flydigi-space/qml"),
-        appDir + QStringLiteral("/../lib/flydigi-space/qml"),
+        appDir + QStringLiteral("/../share/flydigi-bs2pro-linux/qml"),
+        appDir + QStringLiteral("/../lib/flydigi-bs2pro-linux/qml"),
         appDir,
     };
     for (const QString &root : importRoots) {
@@ -47,10 +49,16 @@ int main(int argc, char *argv[])
     }
 
     engine.rootContext()->setContextProperty(QStringLiteral("backend"), &backend);
+    engine.rootContext()->setContextProperty(QStringLiteral("resident"), &resident);
     engine.loadFromModule(QStringLiteral("FlydigiSpace"), QStringLiteral("Main"));
 
     if (engine.rootObjects().isEmpty())
         return 1;
+
+    auto *window = qobject_cast<QWindow *>(engine.rootObjects().first());
+    if (!window)
+        return 1;
+    resident.setWindow(window);
 
     return app.exec();
 }
