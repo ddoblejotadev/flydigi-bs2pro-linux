@@ -67,18 +67,21 @@ linuxdeploy \
   --desktop-file "$root_dir/packaging/flydigi-bs2pro-linux.desktop" \
   --icon-file "$root_dir/packaging/flydigi-bs2pro-linux.svg" \
   --plugin qt \
-  --output appimage \
   --executable "$appdir/usr/bin/flydigi-bs2pro-linux" \
   --executable "$appdir/usr/bin/flydigi-bs2pro-linux-daemon"
 
-mkdir -p "$out_dir"
-# linuxdeploy writes the final file in the current directory; normalize its name.
-for image in ./*.AppImage; do
-  [ -e "$image" ] || continue
-  mv "$image" "$out_dir/flydigi-bs2pro-linux-${version}-x86_64.AppImage"
-  echo "created $out_dir/flydigi-bs2pro-linux-${version}-x86_64.AppImage"
-  exit 0
-done
+# Directly launching an AppImage runs AppRun, not the desktop Exec field.
+# Make AppRun enter the bundled wrapper so the daemon always starts before GUI.
+cat > "$appdir/AppRun" <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+app_root="$(dirname "$(readlink -f "$0")")"
+export APPDIR="$app_root"
+exec "$app_root/usr/bin/flydigi-bs2pro-linux-wrapper" "$@"
+EOF
+chmod +x "$appdir/AppRun"
 
-echo "error: linuxdeploy did not produce an AppImage" >&2
-exit 1
+mkdir -p "$out_dir"
+output="$out_dir/flydigi-bs2pro-linux-${version}-x86_64.AppImage"
+ARCH=x86_64 appimagetool "$appdir" "$output"
+echo "created $output"
