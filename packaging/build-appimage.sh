@@ -77,6 +77,10 @@ cat > "$appdir/AppRun" <<'EOF'
 set -euo pipefail
 app_root="$(dirname "$(readlink -f "$0")")"
 export APPDIR="$app_root"
+export PATH="$app_root/usr/bin${PATH:+:$PATH}"
+export LD_LIBRARY_PATH="$app_root/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export QT_PLUGIN_PATH="$app_root/usr/plugins"
+export QML2_IMPORT_PATH="$app_root/usr/qml:$app_root/usr/share/flydigi-bs2pro-linux/qml"
 exec "$app_root/usr/bin/flydigi-bs2pro-linux-wrapper" "$@"
 EOF
 chmod +x "$appdir/AppRun"
