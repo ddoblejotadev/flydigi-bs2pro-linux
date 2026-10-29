@@ -49,6 +49,7 @@ else
     gui_bin="/usr/bin/flydigi-bs2pro-linux"
 fi
 daemon_sock="${FLYDIGI_SOCKET:-${XDG_RUNTIME_DIR:-/run/user/$UID}/flydigi-bs2pro-linux.sock}"
+export FLYDIGI_SOCKET="$daemon_sock"
 
 # Start daemon if not running.
 if ! pgrep -x "flydigi-bs2pro-linux-daemon" >/dev/null 2>&1; then
