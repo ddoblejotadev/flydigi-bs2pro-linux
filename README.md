@@ -26,14 +26,13 @@ A native Qt 6/QML control panel for the Flydigi BS2 Pro cooler on Linux. It prov
 
 The AppImage contains the GUI, the built-in daemon, and the Qt/QML runtime. No external daemon dependency.
 
-To install or update interactively, download `flydigi-installer` from the same release, make it executable, and run it:
+To install or update interactively, download `flydigi-installer` from the same release and run this **single line**:
 
 ```sh
-chmod +x flydigi-installer
-./flydigi-installer
+mkdir -p ~/.local/bin && curl --fail --location --output ~/.local/bin/flydigi-installer https://github.com/ddoblejotadev/flydigi-bs2pro-linux/releases/latest/download/flydigi-installer && chmod +x ~/.local/bin/flydigi-installer && ~/.local/bin/flydigi-installer
 ```
 
-The installer shows the installed/latest version and release notes, verifies `SHA256SUMS` before replacing the AppImage, asks for confirmation, and keeps the previous version for rollback. It does not use `sudo` or control the cooler daemon. If you prefer to inspect it first, download it as a normal release asset; never pipe an unknown script directly into a shell.
+This command downloads an executable installer, not a shell script. The installer shows the installed/latest version and release notes, verifies `SHA256SUMS` before replacing the AppImage, asks for confirmation, and keeps the previous version for rollback. It does not use `sudo` or control the cooler daemon. If you prefer a graphical download, download `flydigi-installer` from the release page, mark it executable, and open it from a terminal.
 
 ### Debian, Ubuntu, Linux Mint, and derivatives
 
