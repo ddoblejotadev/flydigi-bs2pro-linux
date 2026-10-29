@@ -81,6 +81,7 @@ export PATH="$app_root/usr/bin${PATH:+:$PATH}"
 export LD_LIBRARY_PATH="$app_root/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export QT_PLUGIN_PATH="$app_root/usr/plugins"
 export QML2_IMPORT_PATH="$app_root/usr/qml:$app_root/usr/share/flydigi-bs2pro-linux/qml"
+export QT_QPA_PLATFORM="${QT_QPA_PLATFORM:-xcb}"
 exec "$app_root/usr/bin/flydigi-bs2pro-linux-wrapper" "$@"
 EOF
 chmod +x "$appdir/AppRun"
