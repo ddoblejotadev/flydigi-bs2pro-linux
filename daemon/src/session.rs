@@ -191,6 +191,10 @@ pub(crate) fn open_endpoint(device: &Device, writable: bool) -> io::Result<File>
     Ok(input)
 }
 
+fn ack_is_positive(command: u8, payload: &[u8]) -> bool {
+    payload == [1] || (command == 0x23 && payload == [3])
+}
+
 fn wait_for_ack(input: &mut impl Read, transport: Transport, command: u8) -> io::Result<()> {
     let started = Instant::now();
     let mut report = [0u8; 33];
@@ -199,7 +203,7 @@ fn wait_for_ack(input: &mut impl Read, transport: Transport, command: u8) -> io:
             Ok(length) => {
                 if let Ok(frame) = protocol::parse_frame(&report[..length], transport) {
                     if frame.command() == command {
-                        if frame.payload() == [1] {
+                        if ack_is_positive(command, frame.payload()) {
                             return Ok(());
                         }
                         let payload = frame.payload().iter().map(|byte| format!("{byte:02x}")).collect::<Vec<_>>().join(" ");
@@ -403,6 +407,14 @@ mod tests {
             revision: 0,
             demands: Vec::new(),
         }
+    }
+
+    #[test]
+    fn accepts_realtime_mode_ack_and_rejects_other_non_success_payloads() {
+        assert!(ack_is_positive(0x23, &[1]));
+        assert!(ack_is_positive(0x23, &[3]));
+        assert!(!ack_is_positive(0x21, &[3]));
+        assert!(!ack_is_positive(0x23, &[2]));
     }
 
     #[test]
