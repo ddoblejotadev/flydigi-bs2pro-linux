@@ -303,7 +303,7 @@ fn handle_connection(mut stream: UnixStream) -> Result<(), DaemonError> {
             }
         }
         Some("get_config") => {
-            let policy = flydigi_bs2pro_linux_daemon::curve::load("performance");
+            let policy = flydigi_bs2pro_linux_daemon::curve::load_active();
             write_json(&mut stream, &serde_json::json!({
                 "reply": "config",
                 "config": {"curve_policy": policy},
