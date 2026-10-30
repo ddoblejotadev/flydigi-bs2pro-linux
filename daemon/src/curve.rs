@@ -54,6 +54,16 @@ pub fn load(preset: &str) -> CurvePolicy {
         .unwrap_or_else(|| community_default(preset))
 }
 
+/// Load the user-selected curve for the host-side Auto controller.
+/// Unlike `load`, this does not force a requested preset and therefore preserves
+/// the Quiet/Performance/Custom selection made by the GUI.
+pub fn load_active() -> CurvePolicy {
+    fs::read(config_path()).ok()
+        .and_then(|bytes| serde_json::from_slice::<CurvePolicy>(&bytes).ok())
+        .filter(|policy| policy.points.len() == 8)
+        .unwrap_or_else(|| community_default("performance"))
+}
+
 pub fn save(policy: &CurvePolicy) -> std::io::Result<()> {
     let path = config_path();
     if let Some(parent) = path.parent() { fs::create_dir_all(parent)?; }
