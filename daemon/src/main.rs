@@ -77,7 +77,7 @@ fn start_auto() {
     let handle = thread::spawn(|| {
         let mut state = flydigi_bs2pro_linux_daemon::control::ControllerState::default();
         while AUTO_RUNNING.load(Ordering::SeqCst) {
-            let policy = flydigi_bs2pro_linux_daemon::curve::load("performance");
+            let policy = flydigi_bs2pro_linux_daemon::curve::load_active();
             let readings = flydigi_bs2pro_linux_daemon::sensors::read_all();
             let temperature = flydigi_bs2pro_linux_daemon::sensors::primary_temperature(&readings);
             let supply = wake_and_status().supply_max_rpm.unwrap_or(4000);
