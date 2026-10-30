@@ -281,11 +281,19 @@ fn prepare_command_session() -> Result<(Session, StatusResponse), String> {
 
 fn finish_command(session: &mut Session, reports: &[Report]) -> Result<StatusResponse, String> {
     session.execute_reports(reports).map_err(|error| error.to_string())?;
-    let after = session.status();
-    if !after.connected {
-        return Err("command not confirmed by status readback".to_string());
+    // Status notifications arrive independently of command ACKs. A single
+    // immediate read can land between reports, so retry bounded readback only;
+    // never replay the HID mutation.
+    for attempt in 0..3 {
+        let after = session.status();
+        if after.connected {
+            return Ok(after);
+        }
+        if attempt < 2 {
+            thread::sleep(Duration::from_millis(50));
+        }
     }
-    Ok(after)
+    Err("command not confirmed by status readback".to_string())
 }
 
 pub fn execute_set_gear(gear: crate::command::Gear, rpm: u16) -> Result<StatusResponse, String> {
